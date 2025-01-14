@@ -12,6 +12,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.4/Sortable.min.js"></script>
+
     <link rel="stylesheet" href="{{ static_path }}/kite.css?{{ timestamp }}" />
     <script>
         const timestamp = Date.now();
@@ -118,6 +119,7 @@
                     })
                     .catch((error) => {
                         console.error("Error loading media data:", error);
+                        mediaData = [];
                     });
             }
 
@@ -692,7 +694,8 @@
                                 Alpine.store("categories").order = storedOrder.concat(newCategories);
 
                                 // Remove categories from order that no longer exist
-                                Alpine.store("categories").order = Alpine.store("categories").order.filter((name) => allCategoryNames.includes(name));
+                                Alpine.store("categories").order = Alpine.store("categories")
+                                    .order.filter((name) => allCategoryNames.includes(name));
 
                                 // Keep their enabled categories that still exist
                                 Alpine.store("categories").enabled = storedEnabled.filter((name) => allCategoryNames.includes(name));
@@ -1688,7 +1691,8 @@
                                     <h3 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-2">Historical
                                         background</h3>
                                     <p class="mb-4 text-gray-700 dark:text-gray-300"
-                                        x-text="story.historical_background"></p>
+                                        x-text="story.historical_background">
+                                    </p>
                                 </section>
 
                                 <section
@@ -2277,37 +2281,111 @@
                     </div>
                 </div>
                 <!-- History Tab -->
+                <script type="module">
+                    import { message, result, spawn, connect, createDataItemSigner } from "https://esm.sh/@permaweb/aoconnect@0.0.59";
+
+                    const { message: sendMessage, result: getResult, spawn: createProcess } = connect({
+                        GATEWAY_URL: "https://arweave.net",
+                        GRAPHQL_URL: "https://arweave.net/graphql",
+                        MU_URL: "https://mu.arweave.net",
+                        CU_URL: "https://cu.arweave.net",
+                    });
+
+                    let isConnected = false;
+                    let currentAddress = '';
+
+                    async function connectWallet() {
+                        try {
+                            if (!window.arweaveWallet) {
+                                alert("ArConnect extension is not installed. Please install it to continue.");
+                                return;
+                            }
+
+                            await window.arweaveWallet.connect(
+                                ["ACCESS_ADDRESS", "SIGN_TRANSACTION"],
+                                {
+                                    name: "Kite News",
+                                    logo: "https://example.com/logo.png",
+                                }
+                            );
+
+                            currentAddress = await window.arweaveWallet.getActiveAddress();
+                            isConnected = true;
+                            updateUI();
+
+                            console.log("Wallet connected successfully!");
+                            console.log("Connected wallet address:", currentAddress);
+
+                        } catch (error) {
+                            console.error("Failed to connect wallet:", error);
+                        }
+                    }
+
+                    function disconnectWallet() {
+                        isConnected = false;
+                        currentAddress = '';
+                        updateUI();
+                    }
+
+                    function updateUI() {
+                        const connectButton = document.getElementById("connect-wallet-button");
+                        const walletStatus = document.getElementById("wallet-status");
+
+                        if (isConnected) {
+                            connectButton.innerHTML = `
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                </svg>
+                                <span>Disconnect Wallet</span>
+                            `;
+                            connectButton.onclick = disconnectWallet;
+                            connectButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                            connectButton.classList.add('bg-red-600', 'hover:bg-red-700');
+                            walletStatus.innerHTML = `
+                                <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                                Connected: ${currentAddress.slice(0, 6)}...${currentAddress.slice(-4)}
+                            `;
+                        } else {
+                            connectButton.innerHTML = `
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                                <span>Connect Wallet</span>
+                            `;
+                            connectButton.onclick = connectWallet;
+                            connectButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+                            connectButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                            walletStatus.innerHTML = '';
+                        }
+                    }
+
+                    document.addEventListener('DOMContentLoaded', updateUI);
+                </script>
                 <div x-show="activeTab === 'history'" class="space-y-6">
                     <div class="flex flex-col space-y-4">
-                        <button
-                            class="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors duration-200 font-medium"
-                            @click="$store.wallet.connect()">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="inline-block h-5 w-5 mr-2" fill="none"
-                                viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                            Connect Wallet
+                        <div class="flex justify-end mb-2">
+                            <p id="wallet-status" class="text-sm font-medium text-gray-600 dark:text-gray-400"></p>
+                        </div>
+                        <button id="connect-wallet-button"
+                            class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm font-medium flex items-center justify-center space-x-2">
                         </button>
                     </div>
                 </div>
-
             </div>
         </div>
-    </div>
 
-    <!-- Footer -->
-    <footer class="py-4 mt-8">
-        <div class="container mx-auto px-4 max-w-[732px] flex justify-center items-center">
-            <a :href="currentCategory === 'OnThisDay' ? 'https://corsproxy.io/?url=https://en.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday' : currentCategory.toLowerCase() + '.xml'"
-                target="_blank"
-                class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center space-x-2"
-                title="RSS feed">
-                <img src="{{ static_path }}/svg/rss.svg" alt="" class="h-5 w-5 dark:invert" aria-hidden="true" />
-                <span class="text-sm">RSS Feed</span>
-            </a>
-        </div>
-    </footer>
+        <!-- Footer -->
+        <footer class="py-4 mt-8">
+            <div class="container mx-auto px-4 max-w-[732px] flex justify-center items-center">
+                <a :href="currentCategory === 'OnThisDay' ? 'https://corsproxy.io/?url=https://en.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday' : currentCategory.toLowerCase() + '.xml'"
+                    target="_blank"
+                    class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center space-x-2"
+                    title="RSS feed">
+                    <img src="{{ static_path }}/svg/rss.svg" alt="" class="h-5 w-5 dark:invert" aria-hidden="true" />
+                    <span class="text-sm">RSS Feed</span>
+                </a>
+            </div>
+        </footer>
 </body>
 
 </html>
