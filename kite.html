@@ -2305,7 +2305,7 @@
                                 ["ACCESS_ADDRESS", "SIGN_TRANSACTION"],
                                 {
                                     name: "Kite News",
-                                    logo: "https://example.com/logo.png",
+                                    logo: "https://corsproxy.io/?url={{ static_path }}/svg/kite.svg",
                                 }
                             );
 
@@ -2321,10 +2321,18 @@
                         }
                     }
 
-                    function disconnectWallet() {
-                        isConnected = false;
-                        currentAddress = '';
-                        updateUI();
+                    async function disconnectWallet() {
+                        try {
+                            if (window.arweaveWallet) {
+                                await window.arweaveWallet.disconnect();
+                            }
+                            isConnected = false;
+                            currentAddress = '';
+                            updateUI();
+                            console.log("Wallet disconnected successfully!");
+                        } catch (error) {
+                            console.error("Failed to disconnect wallet:", error);
+                        }
                     }
 
                     function updateUI() {
