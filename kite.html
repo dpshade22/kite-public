@@ -1288,10 +1288,159 @@
                                 </svg>
                             </template>
                         </button>
-                        <div x-show="$store.audio.isPlaying" @click.stop="$store.audio.changeTune()"
-                            class="absolute -bottom-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer"
-                            style="right: -0.05rem;" x-text="$store.audio.tuneNumber"></div>
                     </div>
+                    </button>
+                    <script>
+                        // async function fetchAndLogData() {
+                        //     const timestamp = Date.now();
+                        //     const base_path = "https://kite.kagi.com" + '/';
+
+                        //     try {
+                        //         // First fetch categories
+                        //         const categoriesResponse = await fetch(`https://corsproxy.io/?url=${base_path}kite.json?${timestamp}`);
+                        //         const data = await categoriesResponse.json();
+                        //         console.log('Categories:', data);
+                        //         const categories = data.categories;
+
+                        //         // Then fetch stories for each category
+                        //         const allStories = await Promise.all(categories.map(async (category) => {
+                        //             const storyResponse = await fetch(`https://corsproxy.io/?url=${base_path}${category.file}?${timestamp}`);
+                        //             const storyData = await storyResponse.json();
+                        //             console.log('Stories:', storyData);
+                        //             return {
+                        //                 category: category.name,
+                        //                 data: storyData
+                        //             };
+                        //         }));
+
+                        //         console.log('All Stories:', allStories);
+                        //     } catch (error) {
+                        //         console.error('Error fetching data:', error);
+                        //     }
+                        // }
+
+                        const KiteData = {
+                            data: null,
+
+                            async init() {
+                                const embeddedData = document.getElementById('embedded-data');
+                                if (embeddedData) {
+                                    try {
+                                        this.data = JSON.parse(embeddedData.textContent);
+                                        this.patchFetchRequests();
+                                        console.log('Loaded embedded data');
+                                        return true;
+                                    } catch (error) {
+                                        console.error('Error parsing embedded data:', error);
+                                    }
+                                }
+                                return false;
+                            },
+
+                            patchFetchRequests() {
+                                const originalFetch = window.fetch;
+                                const self = this;
+
+                                window.fetch = function (url, options) {
+                                    // Check if URL contains kite.json or category file requests
+                                    if (url.includes('kite.json')) {
+                                        return Promise.resolve({
+                                            json: () => Promise.resolve(self.data.categories)
+                                        });
+                                    }
+
+                                    // Check for category file requests
+                                    const categoryFile = self.data.stories.find(story =>
+                                        url.includes(story.category.toLowerCase()) ||
+                                        url.includes(story.category)
+                                    );
+
+                                    if (categoryFile) {
+                                        return Promise.resolve({
+                                            json: () => Promise.resolve(categoryFile.data)
+                                        });
+                                    }
+
+                                    // Fall back to original fetch for other requests
+                                    return originalFetch(url, options);
+                                };
+                            },
+
+                            async prepareAndSaveData() {
+                                const timestamp = Date.now();
+                                const base_path = window.location.origin + '/';
+
+                                try {
+                                    // Fetch categories
+                                    const categoriesResponse = await fetch(`https://corsproxy.io/?url=${base_path}kite.json?${timestamp}`);
+                                    const categoriesData = await categoriesResponse.json();
+
+                                    // Fetch all stories
+                                    const storyPromises = categoriesData.categories.map(async category => {
+                                        const response = await fetch(`https://corsproxy.io/?url=${base_path}${category.file}?${timestamp}`);
+                                        const storyData = await response.json();
+                                        return {
+                                            category: category.name,
+                                            data: storyData
+                                        };
+                                    });
+
+                                    const allStories = await Promise.all(storyPromises);
+
+                                    // Combine all data
+                                    const combinedData = {
+                                        categories: categoriesData,
+                                        stories: allStories,
+                                        timestamp: timestamp
+                                    };
+
+                                    // Get current HTML without existing embedded data
+                                    let currentHTML = document.documentElement.outerHTML;
+                                    const existingData = currentHTML.match(/<script id="embedded-data".*?<\/script>/s);
+                                    if (existingData) {
+                                        currentHTML = currentHTML.replace(existingData[0], '');
+                                    }
+
+                                    const dataScript = '<script id="embedded-data" type="application/json">' + JSON.stringify(combinedData, null, 2) + '<\/script>';
+
+                                    const finalHTML = currentHTML.replace('<\/body>', dataScript + '\n<\/body>');
+
+                                    const blob = new Blob([finalHTML], { type: 'text/html;charset=utf-8' });
+                                    const dataUrl = URL.createObjectURL(blob);
+
+                                    const downloadLink = document.createElement('a');
+                                    downloadLink.href = dataUrl;
+                                    downloadLink.download = 'kite-snapshot-' + timestamp + '.html';
+
+                                    document.body.appendChild(downloadLink);
+                                    downloadLink.click();
+                                    document.body.removeChild(downloadLink);
+
+                                    setTimeout(function () {
+                                        URL.revokeObjectURL(dataUrl);
+                                    }, 100);
+
+                                } catch (error) {
+                                    console.error('Error preparing data:', error);
+                                }
+                            }
+                        };
+
+                        document.addEventListener('DOMContentLoaded', function () {
+                            KiteData.init();
+                        });
+
+                        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                            KiteData.init();
+                        }
+                    </script>
+                    <button @click="prepareAndSaveData()" title="Prepare for Arweave"
+                        class="ml-2 flex items-center justify-center w-8 h-8">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600 dark:text-gray-400"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
                     </button>
                     <button @click="$store.settings.open()" title="Settings" class="ml-2">
                         <img src="{{ static_path }}/svg/gear.svg" alt=""
@@ -2291,7 +2440,6 @@
                         CU_URL: "https://cu.arweave.net",
                     });
 
-                    let isConnected = false;
                     let currentAddress = '';
 
                     async function connectWallet() {
@@ -2310,7 +2458,7 @@
                             );
 
                             currentAddress = await window.arweaveWallet.getActiveAddress();
-                            isConnected = true;
+                            Alpine.store('wallet').isConnected = true;
                             updateUI();
 
                             console.log("Wallet connected successfully!");
@@ -2326,7 +2474,7 @@
                             if (window.arweaveWallet) {
                                 await window.arweaveWallet.disconnect();
                             }
-                            isConnected = false;
+                            Alpine.store('wallet').isConnected = false;
                             currentAddress = '';
                             updateUI();
                             console.log("Wallet disconnected successfully!");
@@ -2339,26 +2487,26 @@
                         const connectButton = document.getElementById("connect-wallet-button");
                         const walletStatus = document.getElementById("wallet-status");
 
-                        if (isConnected) {
+                        if (Alpine.store('wallet').isConnected) {
                             connectButton.innerHTML = `
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg xmlns = "http://www.w3.org/2000/svg" class="h-5 w-5" fill = "none" viewBox = "0 0 24 24" stroke = "currentColor" >
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                </svg>
-                                <span>Disconnect Wallet</span>
-                            `;
+                                </svg >
+                    <span>Disconnect Wallet</span>
+                `;
                             connectButton.onclick = disconnectWallet;
                             connectButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
                             connectButton.classList.add('bg-red-600', 'hover:bg-red-700');
                             walletStatus.innerHTML = `
-                                <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                                Connected: ${currentAddress.slice(0, 6)}...${currentAddress.slice(-4)}
-                            `;
+                    <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2" ></span >
+                        Connected: ${currentAddress.slice(0, 6)}...${currentAddress.slice(-4)}
+                `;
                         } else {
                             connectButton.innerHTML = `
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                </svg>
-                                <span>Connect Wallet</span>
+                    <svg xmlns = "http://www.w3.org/2000/svg" class="h-5 w-5" fill = "none" viewBox = "0 0 24 24" stroke = "currentColor" >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg >
+                    <span>Connect Wallet</span>
                             `;
                             connectButton.onclick = connectWallet;
                             connectButton.classList.remove('bg-red-600', 'hover:bg-red-700');
@@ -2367,7 +2515,12 @@
                         }
                     }
 
-                    document.addEventListener('DOMContentLoaded', updateUI);
+                    document.addEventListener('DOMContentLoaded', () => {
+                        Alpine.store('wallet', {
+                            isConnected: false
+                        });
+                        updateUI();
+                    });
                 </script>
                 <div x-show="activeTab === 'history'" class="space-y-6">
                     <div class="flex flex-col space-y-4">
