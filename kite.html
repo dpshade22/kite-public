@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#ffffff" id="theme-color" />
     <title>Kite</title>
-    <link rel="manifest" href="https://corsproxy.io/?url={{ static_path }}/manifest.json" />
+    <link rel="manifest" href="{{ static_path }}/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="{{ static_path }}/svg/kite.svg" />
     <link rel="apple-touch-icon" href="{{ static_path }}/apple-touch-icon.png" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -19,7 +19,7 @@
         let mediaData = null;
 
         // Load media data immediately
-        fetch("https://corsproxy.io/?url={{ static_path }}/media_data.json")
+        fetch("{{ static_path }}/media_data.json")
             .then((response) => response.json())
             .then((data) => {
                 // Transform array into lookup object
@@ -42,7 +42,7 @@
             });
     </script>
     <link rel="alternate"
-        :href="currentCategory === 'OnThisDay' ? 'https://corsproxy.io/?url=https://en.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday' : currentCategory.toLowerCase() + '.xml'"
+        :href="currentCategory === 'OnThisDay' ? 'https://en.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday' : currentCategory.toLowerCase() + '.xml'"
         type="application/rss+xml" :title="'Kagi News - ' + currentCategory" />
     <script>
         tailwind.config = {
@@ -80,7 +80,7 @@
                 async processSource($event) {
                     if (!mediaData?.lookup) {
                         console.log("Media data not yet loaded, fetching...");
-                        const response = await fetch("https://corsproxy.io/?url={{ static_path }}/media_data.json");
+                        const response = await fetch("{{ static_path }}/media_data.json");
                         const data = await response.json();
                         const lookup = {};
                         data.forEach((item) => {
@@ -112,7 +112,7 @@
             }));
             // Ensure media data is loaded
             if (!mediaData) {
-                fetch("https://corsproxy.io/?url={{ static_path }}/media_data.json")
+                fetch("{{ static_path }}/media_data.json")
                     .then((response) => response.json())
                     .then((data) => {
                         mediaData = data;
@@ -507,7 +507,7 @@
             if (link) {
                 event.preventDefault();
                 const title = decodeURIComponent(link.getAttribute("href").split("/").pop());
-                const apiUrl = `https://corsproxy.io/?url=https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
+                const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
 
                 fetch(apiUrl)
                     .then((response) => response.json())
@@ -664,7 +664,7 @@
 
                     // Load media data
                     try {
-                        const response = await fetch("https://corsproxy.io/?url={{ static_path }}/media_data.json");
+                        const response = await fetch("{{ static_path }}/media_data.json");
                         if (response.ok) {
                             this.mediaData = await response.json();
                         }
@@ -733,7 +733,7 @@
                     fetchChaosIndex();
                 },
                 fetchCategories() {
-                    return fetch(`https://corsproxy.io/?url={{ base_path }}kite.json?${timestamp}`)
+                    return fetch(`{{ base_path }}kite.json?${timestamp}`)
                         .then((response) => response.json())
                         .then((data) => {
                             this.availableCategories = data.categories;
@@ -748,7 +748,7 @@
                     let loadedCategories = 0;
 
                     const fetchPromises = this.availableCategories.map((category) =>
-                        fetch(`https://corsproxy.io/?url={{ base_path }}${category.file}?${timestamp}`)
+                        fetch(`{{ base_path }}${category.file}?${timestamp}`)
                             .then((response) => response.json())
                             .then((data) => {
                                 if (category.name === "OnThisDay") {
@@ -1089,7 +1089,7 @@
                     event.preventDefault();
                 }
                 const title = decodeURIComponent(link.getAttribute("href").split("/").pop());
-                const apiUrl = `https://corsproxy.io/?url=https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
+                const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
                 fetch(apiUrl)
                     .then((response) => response.json())
                     .then((data) => {
@@ -1291,34 +1291,6 @@
                     </div>
                     </button>
                     <script>
-                        // async function fetchAndLogData() {
-                        //     const timestamp = Date.now();
-                        //     const base_path = "https://kite.kagi.com" + '/';
-
-                        //     try {
-                        //         // First fetch categories
-                        //         const categoriesResponse = await fetch(`https://corsproxy.io/?url=${base_path}kite.json?${timestamp}`);
-                        //         const data = await categoriesResponse.json();
-                        //         console.log('Categories:', data);
-                        //         const categories = data.categories;
-
-                        //         // Then fetch stories for each category
-                        //         const allStories = await Promise.all(categories.map(async (category) => {
-                        //             const storyResponse = await fetch(`https://corsproxy.io/?url=${base_path}${category.file}?${timestamp}`);
-                        //             const storyData = await storyResponse.json();
-                        //             console.log('Stories:', storyData);
-                        //             return {
-                        //                 category: category.name,
-                        //                 data: storyData
-                        //             };
-                        //         }));
-
-                        //         console.log('All Stories:', allStories);
-                        //     } catch (error) {
-                        //         console.error('Error fetching data:', error);
-                        //     }
-                        // }
-
                         const KiteData = {
                             data: null,
 
@@ -1342,14 +1314,12 @@
                                 const self = this;
 
                                 window.fetch = function (url, options) {
-                                    // Check if URL contains kite.json or category file requests
                                     if (url.includes('kite.json')) {
                                         return Promise.resolve({
                                             json: () => Promise.resolve(self.data.categories)
                                         });
                                     }
 
-                                    // Check for category file requests
                                     const categoryFile = self.data.stories.find(story =>
                                         url.includes(story.category.toLowerCase()) ||
                                         url.includes(story.category)
@@ -1361,23 +1331,20 @@
                                         });
                                     }
 
-                                    // Fall back to original fetch for other requests
                                     return originalFetch(url, options);
                                 };
                             },
 
                             async prepareAndSaveData() {
                                 const timestamp = Date.now();
-                                const base_path = window.location.origin + '/';
+                                const base_path = 'https://kite.kagi.com' + '/';
 
                                 try {
-                                    // Fetch categories
-                                    const categoriesResponse = await fetch(`https://corsproxy.io/?url=${base_path}kite.json?${timestamp}`);
+                                    const categoriesResponse = await fetch(`${base_path}kite.json?${timestamp}`);
                                     const categoriesData = await categoriesResponse.json();
 
-                                    // Fetch all stories
                                     const storyPromises = categoriesData.categories.map(async category => {
-                                        const response = await fetch(`https://corsproxy.io/?url=${base_path}${category.file}?${timestamp}`);
+                                        const response = await fetch(`${base_path}${category.file}?${timestamp}`);
                                         const storyData = await response.json();
                                         return {
                                             category: category.name,
@@ -1386,40 +1353,8 @@
                                     });
 
                                     const allStories = await Promise.all(storyPromises);
-
-                                    // Combine all data
-                                    const combinedData = {
-                                        categories: categoriesData,
-                                        stories: allStories,
-                                        timestamp: timestamp
-                                    };
-
-                                    // Get current HTML without existing embedded data
-                                    let currentHTML = document.documentElement.outerHTML;
-                                    const existingData = currentHTML.match(/<script id="embedded-data".*?<\/script>/s);
-                                    if (existingData) {
-                                        currentHTML = currentHTML.replace(existingData[0], '');
-                                    }
-
-                                    const dataScript = '<script id="embedded-data" type="application/json">' + JSON.stringify(combinedData, null, 2) + '<\/script>';
-
-                                    const finalHTML = currentHTML.replace('<\/body>', dataScript + '\n<\/body>');
-
-                                    const blob = new Blob([finalHTML], { type: 'text/html;charset=utf-8' });
-                                    const dataUrl = URL.createObjectURL(blob);
-
-                                    const downloadLink = document.createElement('a');
-                                    downloadLink.href = dataUrl;
-                                    downloadLink.download = 'kite-snapshot-' + timestamp + '.html';
-
-                                    document.body.appendChild(downloadLink);
-                                    downloadLink.click();
-                                    document.body.removeChild(downloadLink);
-
-                                    setTimeout(function () {
-                                        URL.revokeObjectURL(dataUrl);
-                                    }, 100);
-
+                                    console.log('All data prepared:', { categories: categoriesData, stories: allStories });
+                                    uploadAllCategories(allStories);
                                 } catch (error) {
                                     console.error('Error preparing data:', error);
                                 }
@@ -1434,7 +1369,7 @@
                             KiteData.init();
                         }
                     </script>
-                    <button @click="prepareAndSaveData()" title="Prepare for Arweave"
+                    <button onclick="KiteData.prepareAndSaveData()" title="Prepare for Arweave"
                         class="ml-2 flex items-center justify-center w-8 h-8">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600 dark:text-gray-400"
                             fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2453,7 +2388,7 @@
                                 ["ACCESS_ADDRESS", "SIGN_TRANSACTION"],
                                 {
                                     name: "Kite News",
-                                    logo: "https://corsproxy.io/?url={{ static_path }}/svg/kite.svg",
+                                    logo: "{{ static_path }}/svg/kite.svg",
                                 }
                             );
 
@@ -2480,6 +2415,85 @@
                             console.log("Wallet disconnected successfully!");
                         } catch (error) {
                             console.error("Failed to disconnect wallet:", error);
+                        }
+                    }
+
+                    async function uploadTransaction(data, tags) {
+                        try {
+                            if (!window.arweaveWallet) {
+                                throw new Error("ArConnect extension is not installed.");
+                            }
+
+                            // await window.arweaveWallet.connect(["ACCESS_ADDRESS", "SIGN_TRANSACTION"]);
+                            // const walletAddress = await window.arweaveWallet.getActiveAddress();
+                            // console.log("Connected wallet address:", walletAddress);
+
+                            const signer = createDataItemSigner(window.arweaveWallet);
+
+                            const response = await sendMessage({
+                                process: "arweave-transaction",
+                                tags: tags,
+                                signer: signer,
+                                data: JSON.stringify(data),
+                            });
+
+                            console.log("Transaction uploaded successfully:", response);
+                            return response;
+                        } catch (error) {
+                            console.error("Failed to upload transaction:", error);
+                            throw error;
+                        }
+                    }
+
+                    window.uploadAllCategories = async function uploadAllCategories(categories) {
+                        console.log("Starting uploadAllCategories function");
+                        const manifest = {
+                            manifest: "arweave/paths",
+                            version: "0.1.0",
+                            index: {
+                                path: "index.html"
+                            },
+                            paths: {}
+                        };
+                        console.log("Manifest initialized:", manifest);
+                        console.log(categories);
+                        for (const category of categories) {
+                            console.log(`Processing category: ${category.category}`);
+                            const data = { name: category.category, file: category.data };
+                            const tags = [
+                                { name: "Content-Type", value: "application/json" },
+                                { name: "App-Name", value: "KiteData" },
+                                { name: "Category", value: category.category }
+                            ];
+                            console.log(`Tags for ${category.category}:`, tags);
+
+                            try {
+                                console.log(`Attempting to upload transaction for ${category.category}`);
+                                const txId = await uploadTransaction(data, tags);
+                                manifest.paths[category.category] = { id: txId };
+                                console.log(`Successfully uploaded ${category.category}: ${txId}`);
+                            } catch (error) {
+                                console.error(`Failed to upload ${category.category}:`, error);
+                                console.log(`Continuing with next category`);
+                            }
+                        }
+
+                        console.log("All categories processed. Preparing to upload manifest");
+                        const manifestTags = [
+                            { name: "Content-Type", value: "application/x.arweave-manifest+json" },
+                            { name: "App-Name", value: "CategoryManifest" }
+                        ];
+                        console.log("Manifest tags:", manifestTags);
+
+                        try {
+                            console.log("Attempting to upload manifest");
+                            const manifestTxId = await uploadTransaction(manifest, manifestTags);
+                            console.log("Manifest uploaded successfully:", manifestTxId);
+                            return manifestTxId;
+                        } catch (error) {
+                            console.error("Failed to upload manifest:", error);
+                            console.log("Throwing error and terminating function");
+                            throw error;
                         }
                     }
 
@@ -2538,7 +2552,7 @@
         <!-- Footer -->
         <footer class="py-4 mt-8">
             <div class="container mx-auto px-4 max-w-[732px] flex justify-center items-center">
-                <a :href="currentCategory === 'OnThisDay' ? 'https://corsproxy.io/?url=https://en.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday' : currentCategory.toLowerCase() + '.xml'"
+                <a :href="currentCategory === 'OnThisDay' ? 'https://en.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday' : currentCategory.toLowerCase() + '.xml'"
                     target="_blank"
                     class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center space-x-2"
                     title="RSS feed">
