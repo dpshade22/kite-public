@@ -14,1099 +14,10 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.4/Sortable.min.js"></script>
 
     <link rel="stylesheet" href="{{ static_path }}/kite.css?{{ timestamp }}" />
-    <script>
-        const timestamp = Date.now();
-        let mediaData = null;
 
-        // Load media data immediately
-        fetch("{{ static_path }}/media_data.json")
-            .then((response) => response.json())
-            .then((data) => {
-                // Transform array into lookup object
-                const lookup = {};
-                data.forEach((item) => {
-                    if (item.domains) {
-                        item.domains.forEach((domain) => {
-                            lookup[domain.toLowerCase()] = item;
-                        });
-                    }
-                });
-
-                mediaData = {
-                    raw: data,
-                    lookup: lookup,
-                };
-            })
-            .catch((error) => {
-                // Error handling for media data loading
-            });
-    </script>
     <link rel="alternate"
         :href="currentCategory === 'OnThisDay' ? 'https://en.wikipedia.org/w/api.php?action=featuredfeed&feed=onthisday' : currentCategory.toLowerCase() + '.xml'"
         type="application/rss+xml" :title="'Kagi News - ' + currentCategory" />
-    <script>
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        dark: {
-                            bg: "#1a202c",
-                            text: "#e2e8f0",
-                        },
-                    },
-                },
-                fontSize: {
-                    xs: "0.75rem", // 12px
-                    sm: "0.875rem", // 14px
-                    base: "1rem", // 16px
-                    lg: "1.125rem", // 18px
-                    xl: "1.35rem",
-                    "2xl": "1.5rem",
-                    "3xl": "1.8rem",
-                    "4xl": "2rem",
-                },
-            },
-        };
-        document.addEventListener("alpine:init", () => {
-            Alpine.data("sourceOverlay", () => ({
-                showSourceOverlay: false,
-                currentSource: { name: "", favicon: "" },
-                sourceArticles: [],
-                currentStory: null,
-                mediaInfo: null,
-                showSourceInfo: false,
-
-                async processSource($event) {
-                    if (!mediaData?.lookup) {
-                        console.log("Media data not yet loaded, fetching...");
-                        const response = await fetch("{{ static_path }}/media_data.json");
-                        const data = await response.json();
-                        const lookup = {};
-                        data.forEach((item) => {
-                            if (item.domains) {
-                                item.domains.forEach((domain) => {
-                                    lookup[domain.toLowerCase()] = item;
-                                });
-                            }
-                        });
-                        mediaData = {
-                            raw: data,
-                            lookup: lookup,
-                        };
-                    }
-
-                    this.showSourceOverlay = true;
-                    this.currentSource = $event.detail.domain || { name: "", favicon: "" };
-                    this.currentStory = $event.detail.story || null;
-                    this.sourceArticles = this.currentStory && this.currentSource?.name ? this.currentStory.articles.filter((a) => a.domain === this.currentSource.name) : [];
-
-                    this.mediaInfo = null;
-                    if (this.currentSource?.name) {
-                        const lookupKey = this.currentSource.name.toLowerCase();
-                        this.mediaInfo = mediaData?.lookup?.[lookupKey];
-                    }
-
-                    this.showSourceInfo = false;
-                },
-            }));
-            // Ensure media data is loaded
-            if (!mediaData) {
-                fetch("{{ static_path }}/media_data.json")
-                    .then((response) => response.json())
-                    .then((data) => {
-                        mediaData = data;
-                    })
-                    .catch((error) => {
-                        console.error("Error loading media data:", error);
-                        mediaData = [];
-                    });
-            }
-
-            Alpine.store("intro", {
-                shown: localStorage.getItem("introShown") === "true",
-                set(value) {
-                    this.shown = value;
-                    localStorage.setItem("introShown", value);
-                },
-            });
-
-            Alpine.store("theme", {
-                current: localStorage.getItem("theme") || "system",
-                set(theme) {
-                    this.current = theme;
-                    localStorage.setItem("theme", theme);
-                    this.apply();
-                },
-                apply() {
-                    const isDark = this.current === "dark" || (this.current === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-                    document.documentElement.classList.toggle("dark", isDark);
-                    document.getElementById("theme-color").setAttribute("content", isDark ? "#1a202c" : "#ffffff");
-                },
-                init() {
-                    this.apply();
-                    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-                        if (this.current === "system") {
-                            this.apply();
-                        }
-                    });
-                },
-            });
-
-            Alpine.store("fontSize", {
-                current: localStorage.getItem("fontSize") || "normal",
-                set(size) {
-                    this.current = size;
-                    localStorage.setItem("fontSize", size);
-                    this.apply();
-                },
-                apply() {
-                    document.body.classList.remove("text-sm", "text-base", "text-lg");
-                    switch (this.current) {
-                        case "small":
-                            document.body.classList.add("text-sm");
-                            break;
-                        case "large":
-                            document.body.classList.add("text-lg");
-                            break;
-                        default:
-                            document.body.classList.add("text-base");
-                    }
-                },
-                init() {
-                    if (!localStorage.getItem("fontSize")) {
-                        this.set("normal");
-                    }
-                    this.apply();
-                },
-            });
-
-            Alpine.store("sections", {
-                defaultOrder: [
-                    "summary",
-                    "primaryImage",
-                    "highlights",
-                    "quotes",
-                    "secondaryImage",
-                    "perspectives",
-                    "historicalBackground",
-                    "humanitarianImpact",
-                    "technicalDetails",
-                    "businessAngle",
-                    "internationalReactions",
-                    "otherDetails",
-                    "timeline",
-                    "sources",
-                    "didYouKnow",
-                    "actionItems"
-                ],
-                settings: {
-                    summary: localStorage.getItem("showSummary") !== "false",
-                    primaryImage: localStorage.getItem("showPrimaryImage") !== "false",
-                    highlights: localStorage.getItem("showHighlights") !== "false",
-                    quotes: localStorage.getItem("showQuotes") !== "false",
-                    secondaryImage: localStorage.getItem("showSecondaryImage") !== "false",
-                    perspectives: localStorage.getItem("showPerspectives") !== "false",
-                    historicalBackground: localStorage.getItem("showHistoricalBackground") !== "false",
-                    humanitarianImpact: localStorage.getItem("showHumanitarianImpact") !== "false",
-                    technicalDetails: localStorage.getItem("showTechnicalDetails") !== "false",
-                    businessAngle: localStorage.getItem("showBusinessAngle") !== "false",
-                    internationalReactions: localStorage.getItem("showInternationalReactions") !== "false",
-                    otherDetails: localStorage.getItem("showOtherDetails") !== "false",
-                    timeline: localStorage.getItem("showTimeline") !== "false",
-                    sources: localStorage.getItem("showSources") !== "false",
-                    didYouKnow: localStorage.getItem("showDidYouKnow") !== "false",
-                    actionItems: localStorage.getItem("showActionItems") !== "false"
-                },
-                order: JSON.parse(localStorage.getItem("sectionOrder")),
-                toggle(section) {
-                    this.settings[section] = !this.settings[section];
-                    localStorage.setItem("show" + section.charAt(0).toUpperCase() + section.slice(1), this.settings[section]);
-                },
-                init() {
-                    if (!this.order) {
-                        this.order = this.defaultOrder;
-                    }
-                    // Reset if there are new items, or the keys are different
-                    if (this.order.length !== this.defaultOrder.length || Object.keys(this.order).some((key) => this.order[key] !== this.defaultOrder[key])) {
-                        this.order = this.defaultOrder;
-                        localStorage.setItem("sectionOrder", JSON.stringify(this.order));
-                    }
-                },
-                render() {
-                    const container = document.querySelector('[x-ref="sectionsList"]');
-
-                    // Clear existing content
-                    container.innerHTML = '';
-
-                    // Create the initial items
-                    Alpine.store('sections').order.forEach(sectionName => {
-                        const div = document.createElement('div');
-                        div.className = 'flex items-center justify-between';
-                        div.dataset.section = sectionName;
-                        div.innerHTML = `
-                                <div class='flex items-center'>
-                                    <svg class='w-6 h-6 text-gray-400 mr-3 cursor-move drag-handle' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                                        <path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 6h16M4 12h16M4 18h16'></path>
-                                    </svg>
-                                    <label class='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                                        ${sectionName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                                    </label>
-                                </div>
-                                <button x-data 
-                                        @click="$store.sections.toggle('${sectionName}')" 
-                                        class="relative inline-flex h-6 w-11 items-center rounded-full"
-                                        :class="$store.sections.settings['${sectionName}'] ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'">
-                                    <span class='sr-only'>Toggle ${sectionName}</span>
-                                    <span class='inline-block h-4 w-4 transform rounded-full bg-white transition'
-                                        :class="$store.sections.settings['${sectionName}'] ? 'translate-x-6' : 'translate-x-1'"></span>
-                                </button>
-                            `;
-                        container.appendChild(div);
-                    });
-
-                    // Initialize Sortable
-                    new Sortable(container, {
-                        animation: 150,
-                        handle: '.drag-handle',
-                        onEnd: function (evt) {
-                            const newOrder = Array.from(evt.to.children)
-                                .map(el => el.dataset.section)
-                                .filter(Boolean);
-
-                            Alpine.store('sections').order = newOrder;
-                            localStorage.setItem("sectionOrder", JSON.stringify(newOrder));
-                        }
-                    });
-                },
-                reset() {
-                    this.order = this.defaultOrder;
-                    localStorage.setItem("sectionOrder", JSON.stringify(this.defaultOrder));
-
-                    this.render();
-                }
-            });
-
-            Alpine.store("chaosIndex", {
-                score: 0,
-                summary: "",
-                getBucketDescription() {
-                    const score = this.score;
-                    if (score >= 0 && score <= 20) {
-                        return "0-20: Peaceful and calm world. Yay!";
-                    } else if (score >= 21 && score <= 40) {
-                        return "21-40: Emerging challenges, manageable tensions.";
-                    } else if (score >= 41 && score <= 60) {
-                        return "41-60: Growing global issues, but hope persists.";
-                    } else if (score >= 61 && score <= 80) {
-                        return "61-80: Multiple crises, increasing instability.";
-                    } else if (score >= 81 && score <= 100) {
-                        return "81-100: Severe global turmoil, widespread impact.";
-                    } else {
-                        return "Undefined score range";
-                    }
-                },
-            });
-
-            Alpine.store("storyCount", {
-                current: parseInt(localStorage.getItem("storyCount")) || 10,
-                set(count) {
-                    this.current = count;
-                    localStorage.setItem("storyCount", count);
-                },
-                init() {
-                    if (this.current < 3) this.current = 3;
-                    if (this.current > 12) this.current = 12;
-                },
-            });
-
-            Alpine.store("categories", {
-                order: [],
-                enabled: [],
-                isValidCategory(category) {
-                    return category != null && category !== undefined && category !== "";
-                },
-                init() {
-                    const savedOrder = JSON.parse(localStorage.getItem("categoryOrder"));
-                    const savedEnabled = JSON.parse(localStorage.getItem("enabledCategories"));
-                    if (savedOrder) {
-                        this.order = savedOrder.filter((cat) => this.isValidCategory(cat));
-                    }
-                    if (savedEnabled) {
-                        // Reorder enabled categories to match the order in categoryOrder and filter out null values
-                        this.enabled = this.order.filter((cat) => this.isValidCategory(cat) && savedEnabled.includes(cat));
-                    }
-                    // Save the cleaned up enabled categories
-                    localStorage.setItem("enabledCategories", JSON.stringify(this.enabled));
-                },
-                saveNewOrder(newOrder) {
-                    this.order = newOrder.filter((cat) => this.isValidCategory(cat));
-                    // Don't modify enabled categories here - let the Sortable handler manage that
-                    localStorage.setItem("categoryOrder", JSON.stringify(this.order));
-                    localStorage.setItem("enabledCategories", JSON.stringify(this.enabled));
-                },
-                enableCategory(category) {
-                    const index = this.enabled.indexOf(category);
-                    if (index > -1) {
-                        if (this.enabled.length > 1) {
-                            this.enabled.splice(index, 1);
-                        }
-                    } else {
-                        // When enabling a category, insert it in the correct position according to order
-                        const orderIndex = this.order.indexOf(category);
-                        const insertIndex = this.enabled.findIndex((cat) => this.order.indexOf(cat) > orderIndex);
-                        if (insertIndex === -1) {
-                            this.enabled.push(category);
-                        } else {
-                            this.enabled.splice(insertIndex, 0, category);
-                        }
-                    }
-
-                    localStorage.setItem("enabledCategories", JSON.stringify(this.enabled));
-                },
-                isEnabled(category) {
-                    return this.enabled.includes(category);
-                },
-            });
-
-            Alpine.store("imageGallery", {
-                swiper: null,
-                isOpen: false,
-                images: [],
-                open(images) {
-                    this.images = images;
-                    this.isOpen = true;
-                    document.body.classList.add("overflow-hidden");
-                    setTimeout(() => {
-                        this.swiper = initializeSwiper(".swiper-container");
-                    }, 0);
-                },
-                close() {
-                    this.isOpen = false;
-                    document.body.classList.remove("overflow-hidden");
-                    if (this.swiper) {
-                        this.swiper.destroy();
-                        this.swiper = null;
-                    }
-                },
-            });
-
-            Alpine.store("settings", {
-                isOpen: false,
-                open() {
-                    this.isOpen = true;
-                    document.body.classList.add("overflow-hidden");
-                },
-                close() {
-                    this.isOpen = false;
-                    document.body.classList.remove("overflow-hidden");
-                },
-            });
-
-            Alpine.store("audio", {
-                isPlaying: false,
-                currentTune: null,
-                audioElement: null,
-                tuneNumber: 1,
-                showIcon: localStorage.getItem("showMusicIcon") !== "false",
-                init() {
-                    this.audioElement = new Audio();
-                    this.audioElement.addEventListener('ended', () => {
-                        this.isPlaying = false;
-                    });
-                    this.tuneNumber = Math.floor(Math.random() * 6) + 1;
-                    if (localStorage.getItem("showMusicIcon") === null) {
-                        localStorage.setItem("showMusicIcon", "true");
-                    }
-                },
-                toggleIcon() {
-                    this.showIcon = !this.showIcon;
-                    localStorage.setItem("showMusicIcon", this.showIcon);
-                },
-                toggle() {
-                    if (this.isPlaying) {
-                        this.pause();
-                    } else {
-                        this.play();
-                    }
-                },
-                changeTune() {
-                    this.tuneNumber = this.tuneNumber % 6 + 1;
-                    this.currentTune = `{{ static_path }}/tune${this.tuneNumber}.mp3`;
-                    if (this.isPlaying) {
-                        this.audioElement.src = this.currentTune;
-                        this.audioElement.play();
-                    }
-                },
-                play() {
-                    if (!this.currentTune) {
-                        this.currentTune = `{{ static_path }}/tune${this.tuneNumber}.mp3`;
-                        this.audioElement.src = this.currentTune;
-                    }
-                    this.audioElement.play();
-                    this.isPlaying = true;
-                },
-                pause() {
-                    this.audioElement.pause();
-                    this.isPlaying = false;
-                }
-            });
-        });
-        function lockScroll() {
-            document.body.style.overflow = "hidden";
-        }
-
-        function unlockScroll() {
-            document.body.style.overflow = "";
-        }
-
-        function fetchChaosIndex() {
-            // Disabled chaos index loading
-            return;
-        }
-
-        function generateArticleId(category, clusterNumber) {
-            return `${category.toLowerCase()}-${clusterNumber}`;
-        }
-
-        function updateUrlWithArticleId(articleId) {
-            const url = new URL(window.location);
-            if (articleId) {
-                url.searchParams.set("article", articleId);
-            } else {
-                url.searchParams.delete("article");
-                // If there are no more parameters, remove the '?' entirely
-                if (Array.from(url.searchParams).length === 0) {
-                    window.history.pushState({}, "", window.location.pathname);
-                    return;
-                }
-            }
-            window.history.pushState({}, "", url);
-        }
-
-        function getArticleIdFromUrl() {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get("article");
-        }
-
-        function formatTimeSince(timestamp) {
-            const diff = Math.floor(Date.now() / 1000 - timestamp);
-            if (diff < 60) {
-                return `Updated ${diff} sec ago`;
-            } else if (diff < 3600) {
-                const mins = Math.floor(diff / 60);
-                return `Updated ${mins} ${mins === 1 ? "min" : "mins"} ago`;
-            } else {
-                const hours = Math.floor(diff / 3600);
-                return `Updated ${hours} ${hours === 1 ? "hour" : "hours"} ago`;
-            }
-        }
-
-        function handleWikiLink(event) {
-            const link = event.target.closest('a[href^="https://en.wikipedia.org/wiki/"]');
-            if (link) {
-                event.preventDefault();
-                const title = decodeURIComponent(link.getAttribute("href").split("/").pop());
-                const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
-
-                fetch(apiUrl)
-                    .then((response) => response.json())
-                    .then((data) => {
-                        showPopup(data, link);
-                    })
-                    .catch((error) => {
-                        console.error("Error fetching Wikipedia summary:", error);
-                    });
-            }
-        }
-
-        function showPopup(data, link) {
-            const popup = document.getElementById("wikipedia-popup");
-            const popupContent = document.getElementById("wikipedia-popup-content");
-            const popupImage = document.getElementById("wikipedia-popup-image");
-            const popupLayout = document.getElementById("wikipedia-popup-layout");
-            const closeButton = document.getElementById("wikipedia-popup-close");
-
-            popupContent.textContent = data.extract;
-
-            if (data.thumbnail) {
-                popupImage.src = data.thumbnail.source;
-                popupImage.style.display = "block";
-            } else {
-                popupImage.style.display = "none";
-            }
-
-            popupLayout.classList.remove("flex-row");
-            popupLayout.classList.add("flex-col");
-            popupImage.classList.add("mb-4");
-            popupImage.classList.remove("mr-4");
-            popupImage.style.width = "100%";
-            popupImage.style.height = "auto";
-            popupImage.style.objectFit = "scale-down";
-
-            const isMobile = window.innerWidth <= 768;
-
-            if (isMobile) {
-                popup.style.position = "fixed";
-                popup.style.left = "0";
-                popup.style.right = "0";
-                popup.style.top = "0";
-                popup.style.width = "100%";
-                popup.style.maxWidth = "100%";
-                popup.style.height = "80vh";
-                popup.style.maxHeight = "80vh";
-                popup.style.margin = "0";
-                popup.style.borderRadius = "0";
-                popup.style.overflowY = "auto";
-                closeButton.style.display = "block";
-            } else {
-                const rect = link.getBoundingClientRect();
-                const viewportWidth = window.innerWidth;
-                const viewportHeight = window.innerHeight;
-                const popupWidth = 400;
-                const popupHeight = 400;
-
-                let leftPosition = rect.left + window.scrollX;
-                let topPosition = rect.bottom + window.scrollY;
-
-                if (leftPosition + popupWidth > viewportWidth) {
-                    leftPosition = Math.max(viewportWidth - popupWidth - 10, 0);
-                }
-
-                if (topPosition + popupHeight > viewportHeight + window.scrollY) {
-                    topPosition = Math.max(rect.top + window.scrollY - popupHeight, window.scrollY);
-                }
-
-                popup.style.position = "absolute";
-                popup.style.left = `${leftPosition}px`;
-                popup.style.top = `${topPosition}px`;
-                popup.style.width = `${popupWidth}px`;
-                popup.style.height = `${popupHeight}px`;
-                popup.style.borderRadius = "0.5rem";
-                closeButton.style.display = "none";
-            }
-
-            popup.style.display = "block";
-        }
-
-        function openImageGallery(images) {
-            Alpine.store("imageGallery").open(images);
-        }
-        document.addEventListener("alpine:init", () => {
-            Alpine.data("kiteApp", () => ({
-                stories: [],
-                expandedStory: null,
-                initialLoading: true,
-                mediaData: [],
-                isScrolling: false,
-                readStories: JSON.parse(localStorage.getItem("readStories") || "{}"),
-                totalStoriesRead: parseInt(localStorage.getItem("totalStoriesRead") || "0"),
-                availableCategories: [],
-                currentCategory: "",
-                timestamp: 0,
-                readCount: 0,
-                dateClickCount: 0,
-                allStories: {},
-                onThisDayEvents: [],
-                showIntro: !Alpine.store("intro").shown && !getArticleIdFromUrl(),
-                chaosScore: 0,
-                chaosSummary: "",
-                viewMode: "list",
-                sortableInstance: null,
-                loadingProgress: 0,
-                getLastUpdated() {
-                    return formatTimeSince(this.timestamp);
-                },
-                openMaps(location) {
-                    const encodedLocation = encodeURIComponent(location);
-                    const appleUrl = `maps://maps.apple.com/?q=${encodedLocation}`;
-                    const googleUrl = `maps:?q=${encodedLocation}`;
-                    const googleWebUrl = `https://www.google.com/maps/search/?api=1&query=${encodedLocation}`;
-
-                    const isMacOSOrIOS = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
-
-                    if (isMacOSOrIOS) {
-                        window.location.href = appleUrl;
-
-                        setTimeout(() => {
-                            if (document.hidden) return;
-                            window.location.href = googleUrl;
-                        }, 500);
-                    } else {
-                        window.location.href = googleUrl;
-
-                        setTimeout(() => {
-                            if (document.hidden) return;
-                            window.location.href = googleWebUrl;
-                        }, 500);
-                    }
-                },
-                allStoriesRead: false,
-                markAllAsRead() {
-                    // Mark all stories in current category as read
-                    this.stories.forEach(story => {
-                        if (!this.readStories[story.title]) {
-                            this.readStories[story.title] = true;
-                            this.totalStoriesRead++;
-                        }
-                    });
-                    // Update localStorage
-                    localStorage.setItem("readStories", JSON.stringify(this.readStories));
-                    localStorage.setItem("totalStoriesRead", this.totalStoriesRead);
-                    // Hide the button
-                    this.allStoriesRead = true;
-                },
-                async init() {
-                    Alpine.store("categories").init();
-
-                    // Check if all stories are read
-                    this.allStoriesRead = this.stories.every(story => this.readStories[story.title]);
-
-                    // Load media data
-                    try {
-                        const response = await fetch("{{ static_path }}/media_data.json");
-                        if (response.ok) {
-                            this.mediaData = await response.json();
-                        }
-                    } catch (error) {
-                        console.error("Error loading media data:", error);
-                        this.mediaData = [];
-                    }
-
-                    this.fetchCategories()
-                        .then(() => {
-                            return this.fetchAllStories();
-                        })
-                        .then(() => {
-                            const storedOrder = Alpine.store("categories").order || [];
-                            const storedEnabled = Alpine.store("categories").enabled || [];
-                            const allCategoryNames = this.availableCategories.map((cat) => cat.name);
-
-                            // For new users (no stored order or enabled categories), set defaults
-                            if (!storedOrder || storedOrder.length === 0 || !storedEnabled || storedEnabled.length === 0) {
-                                const defaultCategories = ["World", "USA", "Business", "Technology", "Science", "Sports", "Gaming", "Bay Area"];
-                                Alpine.store("categories").order = allCategoryNames;
-                                Alpine.store("categories").enabled = defaultCategories.filter((name) => allCategoryNames.includes(name));
-                                this.currentCategory = "World";
-                            } else {
-                                // For existing users, update order and enabled categories
-                                const newCategories = allCategoryNames.filter((name) => !storedOrder.includes(name));
-                                Alpine.store("categories").order = storedOrder.concat(newCategories);
-
-                                // Remove categories from order that no longer exist
-                                Alpine.store("categories").order = Alpine.store("categories")
-                                    .order.filter((name) => allCategoryNames.includes(name));
-
-                                // Keep their enabled categories that still exist
-                                Alpine.store("categories").enabled = storedEnabled.filter((name) => allCategoryNames.includes(name));
-                            }
-
-                            // Rebuild availableCategories according to the updated order
-                            this.availableCategories = Alpine.store("categories")
-                                .order.map((name) => this.availableCategories.find((cat) => cat.name === name))
-                                .filter((cat) => cat);
-
-                            // Save the updated order and enabled categories back to localStorage
-                            localStorage.setItem("categoryOrder", JSON.stringify(Alpine.store("categories").order));
-                            localStorage.setItem("enabledCategories", JSON.stringify(Alpine.store("categories").enabled));
-
-                            // Set current category to the first enabled category
-                            const firstEnabledCategory = Alpine.store("categories").enabled[0];
-                            if (firstEnabledCategory) {
-                                this.currentCategory = firstEnabledCategory;
-                            }
-
-                            this.updateCategoryDropdown();
-                            this.renderCategories();
-                            this.initCategorySortable();
-                            const articleId = getArticleIdFromUrl();
-                            if (articleId) {
-                                this.openSharedArticle(articleId);
-                            }
-                        });
-
-                    Alpine.store("theme").init();
-                    Alpine.store("fontSize").init();
-                    Alpine.store("storyCount").init();
-                    Alpine.store("sections").init();
-
-                    fetchChaosIndex();
-                },
-                fetchCategories() {
-                    return fetch(`{{ base_path }}kite.json?${timestamp}`)
-                        .then((response) => response.json())
-                        .then((data) => {
-                            this.availableCategories = data.categories;
-                            this.timestamp = data.timestamp;
-                        });
-                },
-                fetchAllStories() {
-                    this.initialLoading = true;
-                    this.allStories = {};
-                    this.totalReadCount = 0;
-                    const totalCategories = this.availableCategories.length;
-                    let loadedCategories = 0;
-
-                    const fetchPromises = this.availableCategories.map((category) =>
-                        fetch(`{{ base_path }}${category.file}?${timestamp}`)
-                            .then((response) => response.json())
-                            .then((data) => {
-                                if (category.name === "OnThisDay") {
-                                    this.onThisDayEvents = data.events;
-                                } else {
-                                    this.allStories[category.name] = {
-                                        clusters: data.clusters,
-                                        readCount: data.read,
-                                    };
-                                    this.totalReadCount += data.read;
-                                }
-                                loadedCategories++;
-                                this.loadingProgress = Math.round((loadedCategories / totalCategories) * 100);
-                            })
-                    );
-
-                    return Promise.all(fetchPromises)
-                        .then(() => {
-                            this.changeCategory();
-                            this.initialLoading = false;
-                        })
-                        .catch((error) => {
-                            console.error("Error fetching stories:", error);
-                            this.initialLoading = false;
-                        });
-                },
-                initCategorySortable() {
-                    const enabledContainer = document.querySelector('[x-ref="enabledCategories"]');
-                    new Sortable(enabledContainer, {
-                        animation: 150,
-                        ghostClass: "bg-blue-600",
-                        swapThreshold: 0.5,
-                        onStart: (evt) => {
-                            enabledContainer.classList.add('is-dragging');
-                        },
-                        onEnd: (evt) => {
-                            enabledContainer.classList.remove('is-dragging');
-
-                            const newEnabledOrder = Array.from(evt.to.children)
-                                .map(el => el.dataset.category)
-                                .filter(Boolean);
-
-                            this.updateCategoryOrders(newEnabledOrder);
-                        }
-                    });
-                },
-                renderCategories() {
-                    const enabledContainer = document.querySelector('[x-ref="enabledCategories"]');
-                    const disabledContainer = document.querySelector('[x-ref="disabledCategories"]');
-                    const categoriesStore = Alpine.store('categories');
-                    const self = this;
-
-                    // Clear existing content
-                    enabledContainer.innerHTML = '';
-                    disabledContainer.innerHTML = '';
-
-                    function createCategoryElement(categoryName, isEnabled) {
-                        const div = document.createElement('div');
-                        div.className = `px-6 py-3 rounded-lg text-sm cursor-pointer font-medium inline-flex items-center whitespace-nowrap ${isEnabled
-                            ? 'bg-blue-500 text-white shadow-sm [.is-dragging_&]:bg-blue-500 [&.sortable-chosen]:!bg-blue-600 hover:bg-blue-600'
-                            : 'bg-gray-100 dark:bg-gray-200 text-gray-700 dark:text-gray-800 hover:bg-gray-200 dark:hover:bg-gray-300'
-                            }`;
-                        div.dataset.category = categoryName;
-
-                        // Create inner span for text
-                        const span = document.createElement('span');
-                        span.textContent = categoryName === 'OnThisDay' ? 'Today in History' : categoryName;
-                        div.appendChild(span);
-
-                        // Use pointer workaround instead of click to avoid mobile browser issues
-                        let startTime = 0;
-                        div.addEventListener('pointerdown', (e) => {
-                            startTime = Date.now();
-                        });
-
-                        div.addEventListener('pointerup', (e) => {
-                            // Only trigger click if the pointer was down for less than 200ms (distinguishes from drag)
-                            if (Date.now() - startTime < 200) {
-                                self.handleCategoryClick(categoryName);
-                            }
-                        });
-
-                        return div;
-                    }
-
-                    // Render enabled categories
-                    categoriesStore.enabled.forEach(categoryName => {
-                        enabledContainer.appendChild(createCategoryElement(categoryName, true));
-                    });
-
-                    // Render disabled categories
-                    this.availableCategories
-                        .map((cat) => cat.name)
-                        .filter(cat => !categoriesStore.enabled.includes(cat))
-                        .forEach(categoryName => {
-                            disabledContainer.appendChild(createCategoryElement(categoryName, false));
-                        });
-                },
-                updateCategoryOrders(newEnabledOrder) {
-                    const categoriesStore = Alpine.store("categories");
-                    const currentOrder = categoriesStore.order;
-
-                    // Update enabled categories
-                    categoriesStore.enabled = [...newEnabledOrder];
-
-                    // Create new full order maintaining positions
-                    const newFullOrder = [
-                        ...newEnabledOrder,
-                        ...currentOrder.filter(cat => !newEnabledOrder.includes(cat))
-                    ];
-                    categoriesStore.order = newFullOrder;
-
-                    // Update localStorage
-                    categoriesStore.saveNewOrder(newFullOrder);
-
-                    // Update available categories
-                    this.availableCategories = newFullOrder
-                        .map(catName => this.availableCategories.find(cat => cat.name === catName))
-                        .filter(Boolean);
-                },
-                handleCategoryClick(category) {
-                    const categoriesStore = Alpine.store("categories");
-                    if (!categoriesStore.enabled.includes(category)) {
-                        categoriesStore.enableCategory(category);
-                    }
-                    else if (categoriesStore.enabled.length > 1 && categoriesStore.enabled.includes(category)) {
-                        categoriesStore.enabled = categoriesStore.enabled.filter(cat => cat !== category);
-                        if (category === this.currentCategory) { // If user disables current category, set to first enabled category
-                            this.currentCategory = categoriesStore.enabled[0];
-                            this.changeCategory();
-                        }
-                    }
-
-                    localStorage.setItem("enabledCategories", JSON.stringify(categoriesStore.enabled));
-
-                    this.updateCategoryDropdown();
-                    this.renderCategories();
-
-                },
-                updateCategoryDropdown() {
-                    const select = document.getElementById("category-select");
-                    if (!select) {
-                        return;
-                    }
-
-                    const enabledCategories = Alpine.store("categories").enabled;
-
-                    while (select.firstChild) {
-                        select.removeChild(select.firstChild);
-                    }
-
-                    // Use the stored order for enabled categories
-                    enabledCategories.forEach((catName) => {
-                        if (catName) {
-                            const option = document.createElement("option");
-                            option.value = catName;
-                            option.textContent = catName === "OnThisDay" ? "Today in History" : catName;
-                            select.appendChild(option);
-                        }
-                    });
-                },
-                closeIntro() {
-                    this.showIntro = false;
-                    Alpine.store("intro").set(true);
-                },
-                toggleStory(story, index) {
-                    if (this.expandedStory === story) {
-                        // Collapse the story
-                        story.expanded = false;
-                        this.expandedStory = null;
-                        updateUrlWithArticleId("");
-                        story.showSources = false;
-                        // Do not call scrollToStory when collapsing
-                    } else {
-                        if (this.expandedStory && this.expandedStory !== story) {
-                            this.expandedStory.expanded = false;
-                            this.expandedStory.showSources = false;
-                        }
-                        // Expand the story
-                        if (!this.readStories[story.title]) {
-                            this.readStories[story.title] = true;
-                            localStorage.setItem("readStories", JSON.stringify(this.readStories));
-                            this.totalStoriesRead++;
-                            localStorage.setItem("totalStoriesRead", this.totalStoriesRead);
-                        }
-                        story.expanded = true;
-                        this.expandedStory = story;
-                        const articleId = generateArticleId(this.currentCategory, story.cluster_number);
-                        updateUrlWithArticleId(articleId);
-                        story.showSources = false;
-                        // Call scrollToStory after expanding
-                        this.$nextTick(() => {
-                            this.scrollToStory(index);
-                        });
-                    }
-                },
-                closeStory(story, index) {
-                    // Collapse the story
-                    story.expanded = false;
-                    this.expandedStory = null;
-                    updateUrlWithArticleId("");
-                    story.showSources = false;
-                    // Scroll to the collapsed story
-                    this.$nextTick(() => {
-                        this.scrollToStory(index);
-                    });
-                },
-                scrollToStory(index) {
-                    setTimeout(() => {
-                        const storyElement = document.getElementById("story-" + index);
-                        if (storyElement) {
-                            const navHeight = document.querySelector(".sticky").offsetHeight;
-                            const yOffset = -navHeight;
-                            const y = storyElement.getBoundingClientRect().top + window.pageYOffset + yOffset;
-                            window.scrollTo({ top: y, behavior: "smooth" });
-                        }
-                    }, 100);
-                },
-                openSharedArticle(articleId) {
-                    const [category, clusterNumber] = articleId.split("-");
-                    // Handle multi-word categories by capitalizing each word
-                    const targetCategory = category
-                        .split("+")
-                        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                        .join(" ");
-
-                    // Wait for stories to be loaded
-                    const checkAndOpenStory = () => {
-                        if (this.allStories[targetCategory]) {
-                            // Set current category first
-                            this.currentCategory = targetCategory;
-
-                            // Make sure the category is enabled
-                            if (!Alpine.store("categories").enabled.includes(targetCategory)) {
-                                Alpine.store("categories").enableCategory(targetCategory);
-                            }
-
-                            // Update category dropdown and UI
-                            this.updateCategoryDropdown();
-                            this.changeCategory();
-
-                            // Find and open the story
-                            const story = this.allStories[targetCategory].clusters.find((s) => s.cluster_number === parseInt(clusterNumber));
-
-                            if (story) {
-                                // Ensure the story is in the visible stories array
-                                this.stories = this.allStories[targetCategory].clusters.slice(0, this.$store.storyCount.current);
-
-                                // Expand the story
-                                story.expanded = true;
-                                this.expandedStory = story;
-
-                                // Scroll to the story after a short delay to ensure DOM is updated
-                                this.$nextTick(() => {
-                                    const storyIndex = this.stories.findIndex((s) => s.cluster_number === story.cluster_number);
-                                    if (storyIndex !== -1) {
-                                        setTimeout(() => {
-                                            this.scrollToStory(storyIndex);
-                                        }, 200);
-                                    }
-                                });
-                            } else {
-                                console.warn(`Story with cluster number ${clusterNumber} not found in ${targetCategory}`);
-                            }
-                        } else {
-                            // If stories aren't loaded yet, try again in 100ms
-                            setTimeout(checkAndOpenStory, 100);
-                        }
-                    };
-
-                    // Start checking for stories
-                    checkAndOpenStory();
-                },
-                shareArticle(story) {
-                    const articleId = generateArticleId(this.currentCategory, story.cluster_number);
-                    const url = new URL(window.location);
-                    url.searchParams.set("article", articleId);
-
-                    if (navigator.share) {
-                        navigator
-                            .share({
-                                title: story.title,
-                                text: "Check out this story:",
-                                url: url.toString(),
-                            })
-                            .catch(() => {
-                                navigator.clipboard.writeText(url.toString());
-                            });
-                    } else {
-                        navigator.clipboard.writeText(url.toString());
-                    }
-                },
-                changeCategory() {
-                    // Close any expanded story
-                    if (this.expandedStory) {
-                        this.expandedStory.expanded = false;
-                        this.expandedStory = null;
-                        updateUrlWithArticleId("");
-                    }
-
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                    if (this.availableCategories.length > 0) {
-                        let enabledCategories = Alpine.store("categories").enabled;
-
-                        if (enabledCategories.length === 0) {
-                            this.availableCategories.forEach((cat) => Alpine.store("categories").enableCategory(cat.name));
-                            enabledCategories = Alpine.store("categories").enabled;
-                        }
-
-                        // Ensure current category is valid and load its stories
-                        if (!enabledCategories.includes(this.currentCategory)) {
-                            this.currentCategory = enabledCategories[0];
-                        }
-
-                        if (this.currentCategory === "OnThisDay") {
-                            this.stories = this.onThisDayEvents;
-                        } else if (this.allStories[this.currentCategory]) {
-                            const allClusters = this.allStories[this.currentCategory].clusters;
-                            const unreadClusters = allClusters.filter((story) => !this.readStories[story.title]);
-                            const readClusters = allClusters.filter((story) => this.readStories[story.title]);
-
-                            // Take unread stories up to the limit
-                            const unreadToShow = unreadClusters.slice(0, this.$store.storyCount.current);
-
-                            // Combine unread and read stories
-                            this.stories = [...unreadToShow, ...readClusters];
-                            this.readCount = this.allStories[this.currentCategory].readCount;
-                        }
-                    }
-                },
-            }));
-        });
-
-        document.addEventListener("pointerover", (event) => {
-            const link = event.target.closest('a[href^="https://en.wikipedia.org/wiki/"]');
-            if (link) {
-                if (event.pointerType === "touch" || window.innerWidth <= 768) {
-                    event.preventDefault();
-                }
-                const title = decodeURIComponent(link.getAttribute("href").split("/").pop());
-                const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
-                fetch(apiUrl)
-                    .then((response) => response.json())
-                    .then((data) => {
-                        showPopup(data, link);
-                    })
-                    .catch((error) => {
-                        console.error("Error fetching Wikipedia summary:", error);
-                    });
-            }
-        });
-
-        document.addEventListener("pointerout", (event) => {
-            if (!event.target.closest('a[href^="https://en.wikipedia.org/wiki/"]') && !event.target.closest("#wikipedia-popup")) {
-                document.getElementById("wikipedia-popup").style.display = "none";
-            }
-        });
-    </script>
 </head>
 
 <body class="min-h-screen bg-white dark:bg-dark-bg text-black dark:text-dark-text"
@@ -1278,97 +189,10 @@
                                         d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                             </template>
-                            <template x-if="$store.audio.isPlaying">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600 dark:text-gray-400"
-                                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9 10h1v4H9zm5 0h1v4h-1z" />
-                                </svg>
-                            </template>
                         </button>
                     </div>
                     </button>
-                    <script>
-                        const KiteData = {
-                            data: null,
 
-                            async init() {
-                                const embeddedData = document.getElementById('embedded-data');
-                                if (embeddedData) {
-                                    try {
-                                        this.data = JSON.parse(embeddedData.textContent);
-                                        this.patchFetchRequests();
-                                        console.log('Loaded embedded data');
-                                        return true;
-                                    } catch (error) {
-                                        console.error('Error parsing embedded data:', error);
-                                    }
-                                }
-                                return false;
-                            },
-
-                            patchFetchRequests() {
-                                const originalFetch = window.fetch;
-                                const self = this;
-
-                                window.fetch = function (url, options) {
-                                    if (url.includes('kite.json')) {
-                                        return Promise.resolve({
-                                            json: () => Promise.resolve(self.data.categories)
-                                        });
-                                    }
-
-                                    const categoryFile = self.data.stories.find(story =>
-                                        url.includes(story.category.toLowerCase()) ||
-                                        url.includes(story.category)
-                                    );
-
-                                    if (categoryFile) {
-                                        return Promise.resolve({
-                                            json: () => Promise.resolve(categoryFile.data)
-                                        });
-                                    }
-
-                                    return originalFetch(url, options);
-                                };
-                            },
-
-                            async prepareAndSaveData() {
-                                const timestamp = Date.now();
-                                const base_path = 'https://kite.kagi.com' + '/';
-
-                                try {
-                                    const categoriesResponse = await fetch(`${base_path}kite.json?${timestamp}`);
-                                    const categoriesData = await categoriesResponse.json();
-
-                                    const storyPromises = categoriesData.categories.map(async category => {
-                                        const response = await fetch(`${base_path}${category.file}?${timestamp}`);
-                                        const storyData = await response.json();
-                                        return {
-                                            category: category.name,
-                                            data: storyData
-                                        };
-                                    });
-
-                                    const allStories = await Promise.all(storyPromises);
-                                    console.log('All data prepared:', { categories: categoriesData, stories: allStories });
-                                    uploadAllCategories(allStories);
-                                } catch (error) {
-                                    console.error('Error preparing data:', error);
-                                }
-                            }
-                        };
-
-                        document.addEventListener('DOMContentLoaded', function () {
-                            KiteData.init();
-                        });
-
-                        if (document.readyState === 'complete' || document.readyState === 'interactive') {
-                            KiteData.init();
-                        }
-                    </script>
                     <button onclick="KiteData.prepareAndSaveData()" title="Prepare for Arweave"
                         class="ml-2 flex items-center justify-center w-8 h-8">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600 dark:text-gray-400"
@@ -2365,177 +1189,7 @@
                     </div>
                 </div>
                 <!-- History Tab -->
-                <script type="module">
-                    import { message, result, spawn, connect, createDataItemSigner } from "https://esm.sh/@permaweb/aoconnect@0.0.59";
 
-                    const { message: sendMessage, result: getResult, spawn: createProcess } = connect({
-                        GATEWAY_URL: "https://arweave.net",
-                        GRAPHQL_URL: "https://arweave.net/graphql",
-                        MU_URL: "https://mu.arweave.net",
-                        CU_URL: "https://cu.arweave.net",
-                    });
-
-                    let currentAddress = '';
-
-                    async function connectWallet() {
-                        try {
-                            if (!window.arweaveWallet) {
-                                alert("ArConnect extension is not installed. Please install it to continue.");
-                                return;
-                            }
-
-                            await window.arweaveWallet.connect(
-                                ["ACCESS_ADDRESS", "SIGN_TRANSACTION"],
-                                {
-                                    name: "Kite News",
-                                    logo: "{{ static_path }}/svg/kite.svg",
-                                }
-                            );
-
-                            currentAddress = await window.arweaveWallet.getActiveAddress();
-                            Alpine.store('wallet').isConnected = true;
-                            updateUI();
-
-                            console.log("Wallet connected successfully!");
-                            console.log("Connected wallet address:", currentAddress);
-
-                        } catch (error) {
-                            console.error("Failed to connect wallet:", error);
-                        }
-                    }
-
-                    async function disconnectWallet() {
-                        try {
-                            if (window.arweaveWallet) {
-                                await window.arweaveWallet.disconnect();
-                            }
-                            Alpine.store('wallet').isConnected = false;
-                            currentAddress = '';
-                            updateUI();
-                            console.log("Wallet disconnected successfully!");
-                        } catch (error) {
-                            console.error("Failed to disconnect wallet:", error);
-                        }
-                    }
-
-                    async function uploadTransaction(data, tags) {
-                        try {
-                            if (!window.arweaveWallet) {
-                                throw new Error("ArConnect extension is not installed.");
-                            }
-
-                            // await window.arweaveWallet.connect(["ACCESS_ADDRESS", "SIGN_TRANSACTION"]);
-                            // const walletAddress = await window.arweaveWallet.getActiveAddress();
-                            // console.log("Connected wallet address:", walletAddress);
-
-                            const signer = createDataItemSigner(window.arweaveWallet);
-
-                            const response = await sendMessage({
-                                process: "arweave-transaction",
-                                tags: tags,
-                                signer: signer,
-                                data: JSON.stringify(data),
-                            });
-
-                            console.log("Transaction uploaded successfully:", response);
-                            return response;
-                        } catch (error) {
-                            console.error("Failed to upload transaction:", error);
-                            throw error;
-                        }
-                    }
-
-                    window.uploadAllCategories = async function uploadAllCategories(categories) {
-                        console.log("Starting uploadAllCategories function");
-                        const manifest = {
-                            manifest: "arweave/paths",
-                            version: "0.1.0",
-                            index: {
-                                path: "index.html"
-                            },
-                            paths: {}
-                        };
-                        console.log("Manifest initialized:", manifest);
-                        console.log(categories);
-                        for (const category of categories) {
-                            console.log(`Processing category: ${category.category}`);
-                            const data = { name: category.category, file: category.data };
-                            const tags = [
-                                { name: "Content-Type", value: "application/json" },
-                                { name: "App-Name", value: "KiteData" },
-                                { name: "Category", value: category.category }
-                            ];
-                            console.log(`Tags for ${category.category}:`, tags);
-
-                            try {
-                                console.log(`Attempting to upload transaction for ${category.category}`);
-                                const txId = await uploadTransaction(data, tags);
-                                manifest.paths[category.category] = { id: txId };
-                                console.log(`Successfully uploaded ${category.category}: ${txId}`);
-                            } catch (error) {
-                                console.error(`Failed to upload ${category.category}:`, error);
-                                console.log(`Continuing with next category`);
-                            }
-                        }
-
-                        console.log("All categories processed. Preparing to upload manifest");
-                        const manifestTags = [
-                            { name: "Content-Type", value: "application/x.arweave-manifest+json" },
-                            { name: "App-Name", value: "CategoryManifest" }
-                        ];
-                        console.log("Manifest tags:", manifestTags);
-
-                        try {
-                            console.log("Attempting to upload manifest");
-                            const manifestTxId = await uploadTransaction(manifest, manifestTags);
-                            console.log("Manifest uploaded successfully:", manifestTxId);
-                            return manifestTxId;
-                        } catch (error) {
-                            console.error("Failed to upload manifest:", error);
-                            console.log("Throwing error and terminating function");
-                            throw error;
-                        }
-                    }
-
-                    function updateUI() {
-                        const connectButton = document.getElementById("connect-wallet-button");
-                        const walletStatus = document.getElementById("wallet-status");
-
-                        if (Alpine.store('wallet').isConnected) {
-                            connectButton.innerHTML = `
-                                <svg xmlns = "http://www.w3.org/2000/svg" class="h-5 w-5" fill = "none" viewBox = "0 0 24 24" stroke = "currentColor" >
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                </svg >
-                    <span>Disconnect Wallet</span>
-                `;
-                            connectButton.onclick = disconnectWallet;
-                            connectButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
-                            connectButton.classList.add('bg-red-600', 'hover:bg-red-700');
-                            walletStatus.innerHTML = `
-                    <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2" ></span >
-                        Connected: ${currentAddress.slice(0, 6)}...${currentAddress.slice(-4)}
-                `;
-                        } else {
-                            connectButton.innerHTML = `
-                    <svg xmlns = "http://www.w3.org/2000/svg" class="h-5 w-5" fill = "none" viewBox = "0 0 24 24" stroke = "currentColor" >
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                </svg >
-                    <span>Connect Wallet</span>
-                            `;
-                            connectButton.onclick = connectWallet;
-                            connectButton.classList.remove('bg-red-600', 'hover:bg-red-700');
-                            connectButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
-                            walletStatus.innerHTML = '';
-                        }
-                    }
-
-                    document.addEventListener('DOMContentLoaded', () => {
-                        Alpine.store('wallet', {
-                            isConnected: false
-                        });
-                        updateUI();
-                    });
-                </script>
                 <div x-show="activeTab === 'history'" class="space-y-6">
                     <div class="flex flex-col space-y-4">
                         <div class="flex justify-end mb-2">
@@ -2561,6 +1215,1379 @@
                 </a>
             </div>
         </footer>
+        <script>
+            const KiteData = {
+                data: null,
+
+                async init() {
+                    const embeddedData = document.getElementById('embedded-data');
+                    if (embeddedData) {
+                        try {
+                            this.data = JSON.parse(embeddedData.textContent);
+                            this.patchFetchRequests();
+                            console.log('Loaded embedded data');
+                            return true;
+                        } catch (error) {
+                            console.error('Error parsing embedded data:', error);
+                        }
+                    }
+                    return false;
+                },
+
+                patchFetchRequests() {
+                    const originalFetch = window.fetch;
+                    const self = this;
+
+                    window.fetch = function (url, options) {
+                        if (url.includes('kite.json')) {
+                            return Promise.resolve({
+                                json: () => Promise.resolve(self.data.categories)
+                            });
+                        }
+
+                        const categoryFile = self.data.stories.find(story =>
+                            url.includes(story.category.toLowerCase()) ||
+                            url.includes(story.category)
+                        );
+
+                        if (categoryFile) {
+                            return Promise.resolve({
+                                json: () => Promise.resolve(categoryFile.data)
+                            });
+                        }
+
+                        return originalFetch(url, options);
+                    };
+                },
+
+                async prepareAndSaveData() {
+                    const timestamp = Date.now();
+                    const base_path = 'https://kite.kagi.com' + '/';
+
+                    try {
+                        const categoriesResponse = await fetch(`${base_path}kite.json?${timestamp}`);
+                        const categoriesData = await categoriesResponse.json();
+
+                        const storyPromises = categoriesData.categories.map(async category => {
+                            const response = await fetch(`${base_path}${category.file}?${timestamp}`);
+                            const storyData = await response.json();
+                            return {
+                                category: category.name,
+                                data: storyData
+                            };
+                        });
+
+                        const allStories = await Promise.all(storyPromises);
+                        console.log('All data prepared:', { categories: categoriesData, stories: allStories });
+                        uploadAllCategories(allStories);
+                    } catch (error) {
+                        console.error('Error preparing data:', error);
+                    }
+                }
+            };
+
+            document.addEventListener('DOMContentLoaded', function () {
+                KiteData.init();
+            });
+
+            if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                KiteData.init();
+            }
+        </script>
+        <script type="module">
+            import { message, result, spawn, connect, createDataItemSigner } from "https://esm.sh/@permaweb/aoconnect@0.0.59";
+
+            const { message: sendMessage, result: getResult, spawn: createProcess } = connect({
+                GATEWAY_URL: "https://arweave.net",
+                GRAPHQL_URL: "https://arweave.net/graphql",
+                MU_URL: "https://mu.arweave.net",
+                CU_URL: "https://cu.arweave.net",
+            });
+
+            let currentAddress = '';
+
+            async function connectWallet() {
+                try {
+                    if (!window.arweaveWallet) {
+                        alert("ArConnect extension is not installed. Please install it to continue.");
+                        return;
+                    }
+
+                    await window.arweaveWallet.connect(
+                        ["ACCESS_ADDRESS", "SIGN_TRANSACTION"],
+                        {
+                            name: "Kite News",
+                            logo: "{{ static_path }}/svg/kite.svg",
+                        }
+                    );
+
+                    currentAddress = await window.arweaveWallet.getActiveAddress();
+                    Alpine.store('wallet').isConnected = true;
+                    updateUI();
+
+                    console.log("Wallet connected successfully!");
+                    console.log("Connected wallet address:", currentAddress);
+
+                } catch (error) {
+                    console.error("Failed to connect wallet:", error);
+                }
+            }
+
+            async function disconnectWallet() {
+                try {
+                    if (window.arweaveWallet) {
+                        await window.arweaveWallet.disconnect();
+                    }
+                    Alpine.store('wallet').isConnected = false;
+                    currentAddress = '';
+                    updateUI();
+                    console.log("Wallet disconnected successfully!");
+                } catch (error) {
+                    console.error("Failed to disconnect wallet:", error);
+                }
+            }
+
+            window.uploadAllCategories = async function uploadAllCategories(categories) {
+                console.log("Starting uploadAllCategories function");
+                const manifest = {
+                    manifest: "arweave/paths",
+                    version: "0.1.0",
+                    index: {
+                        path: "index.html"
+                    },
+                    paths: {
+                        "index.html": {
+                            id: await uploadCurrentPage()
+                        },
+                        "kite.json": {
+                            id: await uploadKiteJson()
+                        }
+                    }
+                };
+
+                async function uploadCurrentPage() {
+                    const htmlContent = document.documentElement.outerHTML;
+                    const htmlTags = [
+                        { name: "Content-Type", value: "text/html" },
+                        { name: "App-Name", value: "KiteData" },
+                        { name: "Type", value: "IndexPage" }
+                    ];
+                    return await sendMessageToArweave(htmlTags, htmlContent);
+                }
+
+                async function uploadKiteJson() {
+                    const kiteJsonContent = JSON.stringify(categories);
+                    const kiteJsonTags = [
+                        { name: "Content-Type", value: "application/json" },
+                        { name: "App-Name", value: "KiteData" },
+                        { name: "Type", value: "KiteJson" }
+                    ];
+                    return await sendMessageToArweave(kiteJsonTags, kiteJsonContent);
+                }
+
+                console.log("Manifest initialized:", manifest);
+                console.log(categories);
+
+                for (const category of categories) {
+                    console.log(`Processing category: ${category.category}`);
+                    const tags = [
+                        { name: "Content-Type", value: "application/json" },
+                        { name: "App-Name", value: "KiteData" },
+                        { name: "Date", value: new Date().toISOString() },
+                        { name: "Category", value: category.category },
+                        { name: "Action", value: "UploadCategory" }
+                    ];
+                    console.log(`Tags for ${category.category}:`, tags);
+
+                    try {
+                        console.log(`Attempting to upload transaction for ${category.category}`);
+                        console.log(category.data);
+                        const messageId = await sendMessageToArweave(tags, JSON.stringify(category.data));
+                        manifest.paths[category.category.toLowerCase() + ".json"] = { id: messageId };
+                        console.log(`Successfully uploaded ${category.category}: ${messageId}`);
+                    } catch (error) {
+                        console.error(`Failed to upload ${category.category}:`, error);
+                        console.log(`Continuing with next category`);
+                    }
+                }
+
+                console.log("All categories processed. Preparing to upload manifest");
+                const manifestTags = [
+                    { name: "Content-Type", value: "application/x.arweave-manifest+json" },
+                    { name: "App-Name", value: "CategoryManifest" },
+                    { name: "Action", value: "UploadManifest" }
+                ];
+                console.log("Manifest tags:", manifestTags);
+
+                try {
+                    console.log("Attempting to upload manifest");
+                    console.log(manifest);
+                    const manifestTxId = await sendMessageToArweave(manifestTags, JSON.stringify(manifest));
+                    console.log("Manifest uploaded successfully:", manifestTxId);
+
+                    // Send action to add the manifest TxID to the backend
+                    const storeDataTags = [
+                        { name: "Action", value: "StoreDataForDate" },
+                        { name: "Date", value: new Date().toISOString() },
+                        { name: "TxID", value: manifestTxId }
+                    ];
+                    await sendMessageToArweave(storeDataTags, JSON.stringify({ manifestTxId }));
+
+                    return manifestTxId;
+                } catch (error) {
+                    console.error("Failed to upload manifest:", error);
+                    console.log("Throwing error and terminating function");
+                    throw error;
+                }
+            }
+
+            async function sendMessageToArweave(tags, data) {
+                try {
+                    const messageId = await message({
+                        process: "8RUgWet9QejgsmtIM4XX3GcSoGUdxbPKkb8wUQikOlw",
+                        data: data,
+                        tags,
+                        signer: createDataItemSigner(window.arweaveWallet),
+                    });
+
+                    console.log(`Message sent with ID: ${messageId}`);
+                    return messageId;
+                } catch (error) {
+                    console.error("Error sending message:", error);
+                    throw error;
+                }
+            }
+
+            function updateUI() {
+                const connectButton = document.getElementById("connect-wallet-button");
+                const walletStatus = document.getElementById("wallet-status");
+
+                if (Alpine.store('wallet').isConnected) {
+                    connectButton.innerHTML = `
+                        <svg xmlns = "http://www.w3.org/2000/svg" class="h-5 w-5" fill = "none" viewBox = "0 0 24 24" stroke = "currentColor" >
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg >
+                        <span>Disconnect Wallet</span>
+                    `;
+                    connectButton.onclick = disconnectWallet;
+                    connectButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                    connectButton.classList.add('bg-red-600', 'hover:bg-red-700');
+                    walletStatus.innerHTML = `
+            <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2" ></span >
+                        Connected: ${currentAddress.slice(0, 6)}...${currentAddress.slice(-4)}
+                    `;
+                } else {
+                    connectButton.innerHTML = `
+            <svg xmlns = "http://www.w3.org/2000/svg" class="h-5 w-5" fill = "none" viewBox = "0 0 24 24" stroke = "currentColor" >
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg >
+                        <span>Connect Wallet</span>
+                    `;
+                    connectButton.onclick = connectWallet;
+                    connectButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+                    connectButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                    walletStatus.innerHTML = '';
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                Alpine.store('wallet', {
+                    isConnected: false
+                });
+                updateUI();
+            });
+        </script>
+        <script>
+            const timestamp = Date.now();
+            let mediaData = null;
+
+            // Load media data immediately
+            fetch("{{ static_path }}/media_data.json")
+                .then((response) => response.json())
+                .then((data) => {
+                    // Transform array into lookup object
+                    const lookup = {};
+                    data.forEach((item) => {
+                        if (item.domains) {
+                            item.domains.forEach((domain) => {
+                                lookup[domain.toLowerCase()] = item;
+                            });
+                        }
+                    });
+
+                    mediaData = {
+                        raw: data,
+                        lookup: lookup,
+                    };
+                })
+                .catch((error) => {
+                    // Error handling for media data loading
+                });
+        </script>
+        <script>
+            tailwind.config = {
+                darkMode: "class",
+                theme: {
+                    extend: {
+                        colors: {
+                            dark: {
+                                bg: "#1a202c",
+                                text: "#e2e8f0",
+                            },
+                        },
+                    },
+                    fontSize: {
+                        xs: "0.75rem", // 12px
+                        sm: "0.875rem", // 14px
+                        base: "1rem", // 16px
+                        lg: "1.125rem", // 18px
+                        xl: "1.35rem",
+                        "2xl": "1.5rem",
+                        "3xl": "1.8rem",
+                        "4xl": "2rem",
+                    },
+                },
+            };
+            document.addEventListener("alpine:init", () => {
+                Alpine.data("sourceOverlay", () => ({
+                    showSourceOverlay: false,
+                    currentSource: { name: "", favicon: "" },
+                    sourceArticles: [],
+                    currentStory: null,
+                    mediaInfo: null,
+                    showSourceInfo: false,
+
+                    async processSource($event) {
+                        if (!mediaData?.lookup) {
+                            console.log("Media data not yet loaded, fetching...");
+                            const response = await fetch("{{ static_path }}/media_data.json");
+                            const data = await response.json();
+                            const lookup = {};
+                            data.forEach((item) => {
+                                if (item.domains) {
+                                    item.domains.forEach((domain) => {
+                                        lookup[domain.toLowerCase()] = item;
+                                    });
+                                }
+                            });
+                            mediaData = {
+                                raw: data,
+                                lookup: lookup,
+                            };
+                        }
+
+                        this.showSourceOverlay = true;
+                        this.currentSource = $event.detail.domain || { name: "", favicon: "" };
+                        this.currentStory = $event.detail.story || null;
+                        this.sourceArticles = this.currentStory && this.currentSource?.name ? this.currentStory.articles.filter((a) => a.domain === this.currentSource.name) : [];
+
+                        this.mediaInfo = null;
+                        if (this.currentSource?.name) {
+                            const lookupKey = this.currentSource.name.toLowerCase();
+                            this.mediaInfo = mediaData?.lookup?.[lookupKey];
+                        }
+
+                        this.showSourceInfo = false;
+                    },
+                }));
+                // Ensure media data is loaded
+                if (!mediaData) {
+                    fetch("{{ static_path }}/media_data.json")
+                        .then((response) => response.json())
+                        .then((data) => {
+                            mediaData = data;
+                        })
+                        .catch((error) => {
+                            console.error("Error loading media data:", error);
+                            mediaData = [];
+                        });
+                }
+
+                Alpine.store("intro", {
+                    shown: localStorage.getItem("introShown") === "true",
+                    set(value) {
+                        this.shown = value;
+                        localStorage.setItem("introShown", value);
+                    },
+                });
+
+                Alpine.store("theme", {
+                    current: localStorage.getItem("theme") || "system",
+                    set(theme) {
+                        this.current = theme;
+                        localStorage.setItem("theme", theme);
+                        this.apply();
+                    },
+                    apply() {
+                        const isDark = this.current === "dark" || (this.current === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+                        document.documentElement.classList.toggle("dark", isDark);
+                        document.getElementById("theme-color").setAttribute("content", isDark ? "#1a202c" : "#ffffff");
+                    },
+                    init() {
+                        this.apply();
+                        window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+                            if (this.current === "system") {
+                                this.apply();
+                            }
+                        });
+                    },
+                });
+
+                Alpine.store("fontSize", {
+                    current: localStorage.getItem("fontSize") || "normal",
+                    set(size) {
+                        this.current = size;
+                        localStorage.setItem("fontSize", size);
+                        this.apply();
+                    },
+                    apply() {
+                        document.body.classList.remove("text-sm", "text-base", "text-lg");
+                        switch (this.current) {
+                            case "small":
+                                document.body.classList.add("text-sm");
+                                break;
+                            case "large":
+                                document.body.classList.add("text-lg");
+                                break;
+                            default:
+                                document.body.classList.add("text-base");
+                        }
+                    },
+                    init() {
+                        if (!localStorage.getItem("fontSize")) {
+                            this.set("normal");
+                        }
+                        this.apply();
+                    },
+                });
+
+                Alpine.store("sections", {
+                    defaultOrder: [
+                        "summary",
+                        "primaryImage",
+                        "highlights",
+                        "quotes",
+                        "secondaryImage",
+                        "perspectives",
+                        "historicalBackground",
+                        "humanitarianImpact",
+                        "technicalDetails",
+                        "businessAngle",
+                        "internationalReactions",
+                        "otherDetails",
+                        "timeline",
+                        "sources",
+                        "didYouKnow",
+                        "actionItems"
+                    ],
+                    settings: {
+                        summary: localStorage.getItem("showSummary") !== "false",
+                        primaryImage: localStorage.getItem("showPrimaryImage") !== "false",
+                        highlights: localStorage.getItem("showHighlights") !== "false",
+                        quotes: localStorage.getItem("showQuotes") !== "false",
+                        secondaryImage: localStorage.getItem("showSecondaryImage") !== "false",
+                        perspectives: localStorage.getItem("showPerspectives") !== "false",
+                        historicalBackground: localStorage.getItem("showHistoricalBackground") !== "false",
+                        humanitarianImpact: localStorage.getItem("showHumanitarianImpact") !== "false",
+                        technicalDetails: localStorage.getItem("showTechnicalDetails") !== "false",
+                        businessAngle: localStorage.getItem("showBusinessAngle") !== "false",
+                        internationalReactions: localStorage.getItem("showInternationalReactions") !== "false",
+                        otherDetails: localStorage.getItem("showOtherDetails") !== "false",
+                        timeline: localStorage.getItem("showTimeline") !== "false",
+                        sources: localStorage.getItem("showSources") !== "false",
+                        didYouKnow: localStorage.getItem("showDidYouKnow") !== "false",
+                        actionItems: localStorage.getItem("showActionItems") !== "false"
+                    },
+                    order: JSON.parse(localStorage.getItem("sectionOrder")),
+                    toggle(section) {
+                        this.settings[section] = !this.settings[section];
+                        localStorage.setItem("show" + section.charAt(0).toUpperCase() + section.slice(1), this.settings[section]);
+                    },
+                    init() {
+                        if (!this.order) {
+                            this.order = this.defaultOrder;
+                        }
+                        // Reset if there are new items, or the keys are different
+                        if (this.order.length !== this.defaultOrder.length || Object.keys(this.order).some((key) => this.order[key] !== this.defaultOrder[key])) {
+                            this.order = this.defaultOrder;
+                            localStorage.setItem("sectionOrder", JSON.stringify(this.order));
+                        }
+                    },
+                    render() {
+                        const container = document.querySelector('[x-ref="sectionsList"]');
+
+                        // Clear existing content
+                        container.innerHTML = '';
+
+                        // Create the initial items
+                        Alpine.store('sections').order.forEach(sectionName => {
+                            const div = document.createElement('div');
+                            div.className = 'flex items-center justify-between';
+                            div.dataset.section = sectionName;
+                            div.innerHTML = `
+                                <div class='flex items-center'>
+                                    <svg class='w-6 h-6 text-gray-400 mr-3 cursor-move drag-handle' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                                        <path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 6h16M4 12h16M4 18h16'></path>
+                                    </svg>
+                                    <label class='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                                        ${sectionName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                                    </label>
+                                </div>
+                                <button x-data 
+                                        @click="$store.sections.toggle('${sectionName}')" 
+                                        class="relative inline-flex h-6 w-11 items-center rounded-full"
+                                        :class="$store.sections.settings['${sectionName}'] ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'">
+                                    <span class='sr-only'>Toggle ${sectionName}</span>
+                                    <span class='inline-block h-4 w-4 transform rounded-full bg-white transition'
+                                        :class="$store.sections.settings['${sectionName}'] ? 'translate-x-6' : 'translate-x-1'"></span>
+                                </button>
+                            `;
+                            container.appendChild(div);
+                        });
+
+                        // Initialize Sortable
+                        new Sortable(container, {
+                            animation: 150,
+                            handle: '.drag-handle',
+                            onEnd: function (evt) {
+                                const newOrder = Array.from(evt.to.children)
+                                    .map(el => el.dataset.section)
+                                    .filter(Boolean);
+
+                                Alpine.store('sections').order = newOrder;
+                                localStorage.setItem("sectionOrder", JSON.stringify(newOrder));
+                            }
+                        });
+                    },
+                    reset() {
+                        this.order = this.defaultOrder;
+                        localStorage.setItem("sectionOrder", JSON.stringify(this.defaultOrder));
+
+                        this.render();
+                    }
+                });
+
+                Alpine.store("chaosIndex", {
+                    score: 0,
+                    summary: "",
+                    getBucketDescription() {
+                        const score = this.score;
+                        if (score >= 0 && score <= 20) {
+                            return "0-20: Peaceful and calm world. Yay!";
+                        } else if (score >= 21 && score <= 40) {
+                            return "21-40: Emerging challenges, manageable tensions.";
+                        } else if (score >= 41 && score <= 60) {
+                            return "41-60: Growing global issues, but hope persists.";
+                        } else if (score >= 61 && score <= 80) {
+                            return "61-80: Multiple crises, increasing instability.";
+                        } else if (score >= 81 && score <= 100) {
+                            return "81-100: Severe global turmoil, widespread impact.";
+                        } else {
+                            return "Undefined score range";
+                        }
+                    },
+                });
+
+                Alpine.store("storyCount", {
+                    current: parseInt(localStorage.getItem("storyCount")) || 10,
+                    set(count) {
+                        this.current = count;
+                        localStorage.setItem("storyCount", count);
+                    },
+                    init() {
+                        if (this.current < 3) this.current = 3;
+                        if (this.current > 12) this.current = 12;
+                    },
+                });
+
+                Alpine.store("categories", {
+                    order: [],
+                    enabled: [],
+                    isValidCategory(category) {
+                        return category != null && category !== undefined && category !== "";
+                    },
+                    init() {
+                        const savedOrder = JSON.parse(localStorage.getItem("categoryOrder"));
+                        const savedEnabled = JSON.parse(localStorage.getItem("enabledCategories"));
+                        if (savedOrder) {
+                            this.order = savedOrder.filter((cat) => this.isValidCategory(cat));
+                        }
+                        if (savedEnabled) {
+                            // Reorder enabled categories to match the order in categoryOrder and filter out null values
+                            this.enabled = this.order.filter((cat) => this.isValidCategory(cat) && savedEnabled.includes(cat));
+                        }
+                        // Save the cleaned up enabled categories
+                        localStorage.setItem("enabledCategories", JSON.stringify(this.enabled));
+                    },
+                    saveNewOrder(newOrder) {
+                        this.order = newOrder.filter((cat) => this.isValidCategory(cat));
+                        // Don't modify enabled categories here - let the Sortable handler manage that
+                        localStorage.setItem("categoryOrder", JSON.stringify(this.order));
+                        localStorage.setItem("enabledCategories", JSON.stringify(this.enabled));
+                    },
+                    enableCategory(category) {
+                        const index = this.enabled.indexOf(category);
+                        if (index > -1) {
+                            if (this.enabled.length > 1) {
+                                this.enabled.splice(index, 1);
+                            }
+                        } else {
+                            // When enabling a category, insert it in the correct position according to order
+                            const orderIndex = this.order.indexOf(category);
+                            const insertIndex = this.enabled.findIndex((cat) => this.order.indexOf(cat) > orderIndex);
+                            if (insertIndex === -1) {
+                                this.enabled.push(category);
+                            } else {
+                                this.enabled.splice(insertIndex, 0, category);
+                            }
+                        }
+
+                        localStorage.setItem("enabledCategories", JSON.stringify(this.enabled));
+                    },
+                    isEnabled(category) {
+                        return this.enabled.includes(category);
+                    },
+                });
+
+                Alpine.store("imageGallery", {
+                    swiper: null,
+                    isOpen: false,
+                    images: [],
+                    open(images) {
+                        this.images = images;
+                        this.isOpen = true;
+                        document.body.classList.add("overflow-hidden");
+                        setTimeout(() => {
+                            this.swiper = initializeSwiper(".swiper-container");
+                        }, 0);
+                    },
+                    close() {
+                        this.isOpen = false;
+                        document.body.classList.remove("overflow-hidden");
+                        if (this.swiper) {
+                            this.swiper.destroy();
+                            this.swiper = null;
+                        }
+                    },
+                });
+
+                Alpine.store("settings", {
+                    isOpen: false,
+                    open() {
+                        this.isOpen = true;
+                        document.body.classList.add("overflow-hidden");
+                    },
+                    close() {
+                        this.isOpen = false;
+                        document.body.classList.remove("overflow-hidden");
+                    },
+                });
+
+                Alpine.store("audio", {
+                    isPlaying: false,
+                    currentTune: null,
+                    audioElement: null,
+                    tuneNumber: 1,
+                    showIcon: localStorage.getItem("showMusicIcon") !== "false",
+                    init() {
+                        this.audioElement = new Audio();
+                        this.audioElement.addEventListener('ended', () => {
+                            this.isPlaying = false;
+                        });
+                        this.tuneNumber = Math.floor(Math.random() * 6) + 1;
+                        if (localStorage.getItem("showMusicIcon") === null) {
+                            localStorage.setItem("showMusicIcon", "true");
+                        }
+                    },
+                    toggleIcon() {
+                        this.showIcon = !this.showIcon;
+                        localStorage.setItem("showMusicIcon", this.showIcon);
+                    },
+                    toggle() {
+                        if (this.isPlaying) {
+                            this.pause();
+                        } else {
+                            this.play();
+                        }
+                    },
+                    changeTune() {
+                        this.tuneNumber = this.tuneNumber % 6 + 1;
+                        this.currentTune = `{{ static_path }}/tune${this.tuneNumber}.mp3`;
+                        if (this.isPlaying) {
+                            this.audioElement.src = this.currentTune;
+                            this.audioElement.play();
+                        }
+                    },
+                    play() {
+                        if (!this.currentTune) {
+                            this.currentTune = `{{ static_path }}/tune${this.tuneNumber}.mp3`;
+                            this.audioElement.src = this.currentTune;
+                        }
+                        this.audioElement.play();
+                        this.isPlaying = true;
+                    },
+                    pause() {
+                        this.audioElement.pause();
+                        this.isPlaying = false;
+                    }
+                });
+            });
+            function lockScroll() {
+                document.body.style.overflow = "hidden";
+            }
+
+            function unlockScroll() {
+                document.body.style.overflow = "";
+            }
+
+            function fetchChaosIndex() {
+                // Disabled chaos index loading
+                return;
+            }
+
+            function generateArticleId(category, clusterNumber) {
+                return `${category.toLowerCase()}-${clusterNumber}`;
+            }
+
+            function updateUrlWithArticleId(articleId) {
+                const url = new URL(window.location);
+                if (articleId) {
+                    url.searchParams.set("article", articleId);
+                } else {
+                    url.searchParams.delete("article");
+                    // If there are no more parameters, remove the '?' entirely
+                    if (Array.from(url.searchParams).length === 0) {
+                        window.history.pushState({}, "", window.location.pathname);
+                        return;
+                    }
+                }
+                window.history.pushState({}, "", url);
+            }
+
+            function getArticleIdFromUrl() {
+                const urlParams = new URLSearchParams(window.location.search);
+                return urlParams.get("article");
+            }
+
+            function formatTimeSince(timestamp) {
+                const diff = Math.floor(Date.now() / 1000 - timestamp);
+                if (diff < 60) {
+                    return `Updated ${diff} sec ago`;
+                } else if (diff < 3600) {
+                    const mins = Math.floor(diff / 60);
+                    return `Updated ${mins} ${mins === 1 ? "min" : "mins"} ago`;
+                } else {
+                    const hours = Math.floor(diff / 3600);
+                    return `Updated ${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+                }
+            }
+
+            function handleWikiLink(event) {
+                const link = event.target.closest('a[href^="https://en.wikipedia.org/wiki/"]');
+                if (link) {
+                    event.preventDefault();
+                    const title = decodeURIComponent(link.getAttribute("href").split("/").pop());
+                    const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
+
+                    fetch(apiUrl)
+                        .then((response) => response.json())
+                        .then((data) => {
+                            showPopup(data, link);
+                        })
+                        .catch((error) => {
+                            console.error("Error fetching Wikipedia summary:", error);
+                        });
+                }
+            }
+
+            function showPopup(data, link) {
+                const popup = document.getElementById("wikipedia-popup");
+                const popupContent = document.getElementById("wikipedia-popup-content");
+                const popupImage = document.getElementById("wikipedia-popup-image");
+                const popupLayout = document.getElementById("wikipedia-popup-layout");
+                const closeButton = document.getElementById("wikipedia-popup-close");
+
+                popupContent.textContent = data.extract;
+
+                if (data.thumbnail) {
+                    popupImage.src = data.thumbnail.source;
+                    popupImage.style.display = "block";
+                } else {
+                    popupImage.style.display = "none";
+                }
+
+                popupLayout.classList.remove("flex-row");
+                popupLayout.classList.add("flex-col");
+                popupImage.classList.add("mb-4");
+                popupImage.classList.remove("mr-4");
+                popupImage.style.width = "100%";
+                popupImage.style.height = "auto";
+                popupImage.style.objectFit = "scale-down";
+
+                const isMobile = window.innerWidth <= 768;
+
+                if (isMobile) {
+                    popup.style.position = "fixed";
+                    popup.style.left = "0";
+                    popup.style.right = "0";
+                    popup.style.top = "0";
+                    popup.style.width = "100%";
+                    popup.style.maxWidth = "100%";
+                    popup.style.height = "80vh";
+                    popup.style.maxHeight = "80vh";
+                    popup.style.margin = "0";
+                    popup.style.borderRadius = "0";
+                    popup.style.overflowY = "auto";
+                    closeButton.style.display = "block";
+                } else {
+                    const rect = link.getBoundingClientRect();
+                    const viewportWidth = window.innerWidth;
+                    const viewportHeight = window.innerHeight;
+                    const popupWidth = 400;
+                    const popupHeight = 400;
+
+                    let leftPosition = rect.left + window.scrollX;
+                    let topPosition = rect.bottom + window.scrollY;
+
+                    if (leftPosition + popupWidth > viewportWidth) {
+                        leftPosition = Math.max(viewportWidth - popupWidth - 10, 0);
+                    }
+
+                    if (topPosition + popupHeight > viewportHeight + window.scrollY) {
+                        topPosition = Math.max(rect.top + window.scrollY - popupHeight, window.scrollY);
+                    }
+
+                    popup.style.position = "absolute";
+                    popup.style.left = `${leftPosition}px`;
+                    popup.style.top = `${topPosition}px`;
+                    popup.style.width = `${popupWidth}px`;
+                    popup.style.height = `${popupHeight}px`;
+                    popup.style.borderRadius = "0.5rem";
+                    closeButton.style.display = "none";
+                }
+
+                popup.style.display = "block";
+            }
+
+            function openImageGallery(images) {
+                Alpine.store("imageGallery").open(images);
+            }
+            document.addEventListener("alpine:init", () => {
+                Alpine.data("kiteApp", () => ({
+                    stories: [],
+                    expandedStory: null,
+                    initialLoading: true,
+                    mediaData: [],
+                    isScrolling: false,
+                    readStories: JSON.parse(localStorage.getItem("readStories") || "{}"),
+                    totalStoriesRead: parseInt(localStorage.getItem("totalStoriesRead") || "0"),
+                    availableCategories: [],
+                    currentCategory: "",
+                    timestamp: 0,
+                    readCount: 0,
+                    dateClickCount: 0,
+                    allStories: {},
+                    onThisDayEvents: [],
+                    showIntro: !Alpine.store("intro").shown && !getArticleIdFromUrl(),
+                    chaosScore: 0,
+                    chaosSummary: "",
+                    viewMode: "list",
+                    sortableInstance: null,
+                    loadingProgress: 0,
+                    getLastUpdated() {
+                        return formatTimeSince(this.timestamp);
+                    },
+                    openMaps(location) {
+                        const encodedLocation = encodeURIComponent(location);
+                        const appleUrl = `maps://maps.apple.com/?q=${encodedLocation}`;
+                        const googleUrl = `maps:?q=${encodedLocation}`;
+                        const googleWebUrl = `https://www.google.com/maps/search/?api=1&query=${encodedLocation}`;
+
+                        const isMacOSOrIOS = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+
+                        if (isMacOSOrIOS) {
+                            window.location.href = appleUrl;
+
+                            setTimeout(() => {
+                                if (document.hidden) return;
+                                window.location.href = googleUrl;
+                            }, 500);
+                        } else {
+                            window.location.href = googleUrl;
+
+                            setTimeout(() => {
+                                if (document.hidden) return;
+                                window.location.href = googleWebUrl;
+                            }, 500);
+                        }
+                    },
+                    allStoriesRead: false,
+                    markAllAsRead() {
+                        // Mark all stories in current category as read
+                        this.stories.forEach(story => {
+                            if (!this.readStories[story.title]) {
+                                this.readStories[story.title] = true;
+                                this.totalStoriesRead++;
+                            }
+                        });
+                        // Update localStorage
+                        localStorage.setItem("readStories", JSON.stringify(this.readStories));
+                        localStorage.setItem("totalStoriesRead", this.totalStoriesRead);
+                        // Hide the button
+                        this.allStoriesRead = true;
+                    },
+                    async init() {
+                        Alpine.store("categories").init();
+
+                        // Check if all stories are read
+                        this.allStoriesRead = this.stories.every(story => this.readStories[story.title]);
+
+                        // Load media data
+                        try {
+                            const response = await fetch("{{ static_path }}/media_data.json");
+                            if (response.ok) {
+                                this.mediaData = await response.json();
+                            }
+                        } catch (error) {
+                            console.error("Error loading media data:", error);
+                            this.mediaData = [];
+                        }
+
+                        this.fetchCategories()
+                            .then(() => {
+                                return this.fetchAllStories();
+                            })
+                            .then(() => {
+                                const storedOrder = Alpine.store("categories").order || [];
+                                const storedEnabled = Alpine.store("categories").enabled || [];
+                                const allCategoryNames = this.availableCategories.map((cat) => cat.name);
+
+                                // For new users (no stored order or enabled categories), set defaults
+                                if (!storedOrder || storedOrder.length === 0 || !storedEnabled || storedEnabled.length === 0) {
+                                    const defaultCategories = ["World", "USA", "Business", "Technology", "Science", "Sports", "Gaming", "Bay Area"];
+                                    Alpine.store("categories").order = allCategoryNames;
+                                    Alpine.store("categories").enabled = defaultCategories.filter((name) => allCategoryNames.includes(name));
+                                    this.currentCategory = "World";
+                                } else {
+                                    // For existing users, update order and enabled categories
+                                    const newCategories = allCategoryNames.filter((name) => !storedOrder.includes(name));
+                                    Alpine.store("categories").order = storedOrder.concat(newCategories);
+
+                                    // Remove categories from order that no longer exist
+                                    Alpine.store("categories").order = Alpine.store("categories")
+                                        .order.filter((name) => allCategoryNames.includes(name));
+
+                                    // Keep their enabled categories that still exist
+                                    Alpine.store("categories").enabled = storedEnabled.filter((name) => allCategoryNames.includes(name));
+                                }
+
+                                // Rebuild availableCategories according to the updated order
+                                this.availableCategories = Alpine.store("categories")
+                                    .order.map((name) => this.availableCategories.find((cat) => cat.name === name))
+                                    .filter((cat) => cat);
+
+                                // Save the updated order and enabled categories back to localStorage
+                                localStorage.setItem("categoryOrder", JSON.stringify(Alpine.store("categories").order));
+                                localStorage.setItem("enabledCategories", JSON.stringify(Alpine.store("categories").enabled));
+
+                                // Set current category to the first enabled category
+                                const firstEnabledCategory = Alpine.store("categories").enabled[0];
+                                if (firstEnabledCategory) {
+                                    this.currentCategory = firstEnabledCategory;
+                                }
+
+                                this.updateCategoryDropdown();
+                                this.renderCategories();
+                                this.initCategorySortable();
+                                const articleId = getArticleIdFromUrl();
+                                if (articleId) {
+                                    this.openSharedArticle(articleId);
+                                }
+                            });
+
+                        Alpine.store("theme").init();
+                        Alpine.store("fontSize").init();
+                        Alpine.store("storyCount").init();
+                        Alpine.store("sections").init();
+
+                        fetchChaosIndex();
+                    },
+                    fetchCategories() {
+                        return fetch(`{{ base_path }}kite.json?${timestamp}`)
+                            .then((response) => response.json())
+                            .then((data) => {
+                                this.availableCategories = data.categories;
+                                this.timestamp = data.timestamp;
+                            });
+                    },
+                    fetchAllStories() {
+                        this.initialLoading = true;
+                        this.allStories = {};
+                        this.totalReadCount = 0;
+                        const totalCategories = this.availableCategories.length;
+                        let loadedCategories = 0;
+                        console.log(window.location);
+                        const kitePath = !window.location.href.includes('kite') && !window.location.href.includes('127') ? window.location.pathname : '{{ base_path }}';
+                        const fetchPromises = this.availableCategories.map((category) =>
+                            fetch(`${kitePath}${category.file}?${timestamp}`)
+                                .then((response) => response.json())
+                                .then((data) => {
+                                    if (category.name === "OnThisDay") {
+                                        this.onThisDayEvents = data.events;
+                                    } else {
+                                        this.allStories[category.name] = {
+                                            clusters: data.clusters,
+                                            readCount: data.read,
+                                        };
+                                        this.totalReadCount += data.read;
+                                    }
+                                    loadedCategories++;
+                                    this.loadingProgress = Math.round((loadedCategories / totalCategories) * 100);
+                                })
+                        );
+
+                        return Promise.all(fetchPromises)
+                            .then(() => {
+                                this.changeCategory();
+                                this.initialLoading = false;
+                            })
+                            .catch((error) => {
+                                console.error("Error fetching stories:", error);
+                                this.initialLoading = false;
+                            });
+                    },
+                    initCategorySortable() {
+                        const enabledContainer = document.querySelector('[x-ref="enabledCategories"]');
+                        new Sortable(enabledContainer, {
+                            animation: 150,
+                            ghostClass: "bg-blue-600",
+                            swapThreshold: 0.5,
+                            onStart: (evt) => {
+                                enabledContainer.classList.add('is-dragging');
+                            },
+                            onEnd: (evt) => {
+                                enabledContainer.classList.remove('is-dragging');
+
+                                const newEnabledOrder = Array.from(evt.to.children)
+                                    .map(el => el.dataset.category)
+                                    .filter(Boolean);
+
+                                this.updateCategoryOrders(newEnabledOrder);
+                            }
+                        });
+                    },
+                    renderCategories() {
+                        const enabledContainer = document.querySelector('[x-ref="enabledCategories"]');
+                        const disabledContainer = document.querySelector('[x-ref="disabledCategories"]');
+                        const categoriesStore = Alpine.store('categories');
+                        const self = this;
+
+                        // Clear existing content
+                        enabledContainer.innerHTML = '';
+                        disabledContainer.innerHTML = '';
+
+                        function createCategoryElement(categoryName, isEnabled) {
+                            const div = document.createElement('div');
+                            div.className = `px-6 py-3 rounded-lg text-sm cursor-pointer font-medium inline-flex items-center whitespace-nowrap ${isEnabled
+                                ? 'bg-blue-500 text-white shadow-sm [.is-dragging_&]:bg-blue-500 [&.sortable-chosen]:!bg-blue-600 hover:bg-blue-600'
+                                : 'bg-gray-100 dark:bg-gray-200 text-gray-700 dark:text-gray-800 hover:bg-gray-200 dark:hover:bg-gray-300'
+                                }`;
+                            div.dataset.category = categoryName;
+
+                            // Create inner span for text
+                            const span = document.createElement('span');
+                            span.textContent = categoryName === 'OnThisDay' ? 'Today in History' : categoryName;
+                            div.appendChild(span);
+
+                            // Use pointer workaround instead of click to avoid mobile browser issues
+                            let startTime = 0;
+                            div.addEventListener('pointerdown', (e) => {
+                                startTime = Date.now();
+                            });
+
+                            div.addEventListener('pointerup', (e) => {
+                                // Only trigger click if the pointer was down for less than 200ms (distinguishes from drag)
+                                if (Date.now() - startTime < 200) {
+                                    self.handleCategoryClick(categoryName);
+                                }
+                            });
+
+                            return div;
+                        }
+
+                        // Render enabled categories
+                        categoriesStore.enabled.forEach(categoryName => {
+                            enabledContainer.appendChild(createCategoryElement(categoryName, true));
+                        });
+
+                        // Render disabled categories
+                        this.availableCategories
+                            .map((cat) => cat.name)
+                            .filter(cat => !categoriesStore.enabled.includes(cat))
+                            .forEach(categoryName => {
+                                disabledContainer.appendChild(createCategoryElement(categoryName, false));
+                            });
+                    },
+                    updateCategoryOrders(newEnabledOrder) {
+                        const categoriesStore = Alpine.store("categories");
+                        const currentOrder = categoriesStore.order;
+
+                        // Update enabled categories
+                        categoriesStore.enabled = [...newEnabledOrder];
+
+                        // Create new full order maintaining positions
+                        const newFullOrder = [
+                            ...newEnabledOrder,
+                            ...currentOrder.filter(cat => !newEnabledOrder.includes(cat))
+                        ];
+                        categoriesStore.order = newFullOrder;
+
+                        // Update localStorage
+                        categoriesStore.saveNewOrder(newFullOrder);
+
+                        // Update available categories
+                        this.availableCategories = newFullOrder
+                            .map(catName => this.availableCategories.find(cat => cat.name === catName))
+                            .filter(Boolean);
+                    },
+                    handleCategoryClick(category) {
+                        const categoriesStore = Alpine.store("categories");
+                        if (!categoriesStore.enabled.includes(category)) {
+                            categoriesStore.enableCategory(category);
+                        }
+                        else if (categoriesStore.enabled.length > 1 && categoriesStore.enabled.includes(category)) {
+                            categoriesStore.enabled = categoriesStore.enabled.filter(cat => cat !== category);
+                            if (category === this.currentCategory) { // If user disables current category, set to first enabled category
+                                this.currentCategory = categoriesStore.enabled[0];
+                                this.changeCategory();
+                            }
+                        }
+
+                        localStorage.setItem("enabledCategories", JSON.stringify(categoriesStore.enabled));
+
+                        this.updateCategoryDropdown();
+                        this.renderCategories();
+
+                    },
+                    updateCategoryDropdown() {
+                        const select = document.getElementById("category-select");
+                        if (!select) {
+                            return;
+                        }
+
+                        const enabledCategories = Alpine.store("categories").enabled;
+
+                        while (select.firstChild) {
+                            select.removeChild(select.firstChild);
+                        }
+
+                        // Use the stored order for enabled categories
+                        enabledCategories.forEach((catName) => {
+                            if (catName) {
+                                const option = document.createElement("option");
+                                option.value = catName;
+                                option.textContent = catName === "OnThisDay" ? "Today in History" : catName;
+                                select.appendChild(option);
+                            }
+                        });
+                    },
+                    closeIntro() {
+                        this.showIntro = false;
+                        Alpine.store("intro").set(true);
+                    },
+                    toggleStory(story, index) {
+                        if (this.expandedStory === story) {
+                            // Collapse the story
+                            story.expanded = false;
+                            this.expandedStory = null;
+                            updateUrlWithArticleId("");
+                            story.showSources = false;
+                            // Do not call scrollToStory when collapsing
+                        } else {
+                            if (this.expandedStory && this.expandedStory !== story) {
+                                this.expandedStory.expanded = false;
+                                this.expandedStory.showSources = false;
+                            }
+                            // Expand the story
+                            if (!this.readStories[story.title]) {
+                                this.readStories[story.title] = true;
+                                localStorage.setItem("readStories", JSON.stringify(this.readStories));
+                                this.totalStoriesRead++;
+                                localStorage.setItem("totalStoriesRead", this.totalStoriesRead);
+                            }
+                            story.expanded = true;
+                            this.expandedStory = story;
+                            const articleId = generateArticleId(this.currentCategory, story.cluster_number);
+                            updateUrlWithArticleId(articleId);
+                            story.showSources = false;
+                            // Call scrollToStory after expanding
+                            this.$nextTick(() => {
+                                this.scrollToStory(index);
+                            });
+                        }
+                    },
+                    closeStory(story, index) {
+                        // Collapse the story
+                        story.expanded = false;
+                        this.expandedStory = null;
+                        updateUrlWithArticleId("");
+                        story.showSources = false;
+                        // Scroll to the collapsed story
+                        this.$nextTick(() => {
+                            this.scrollToStory(index);
+                        });
+                    },
+                    scrollToStory(index) {
+                        setTimeout(() => {
+                            const storyElement = document.getElementById("story-" + index);
+                            if (storyElement) {
+                                const navHeight = document.querySelector(".sticky").offsetHeight;
+                                const yOffset = -navHeight;
+                                const y = storyElement.getBoundingClientRect().top + window.pageYOffset + yOffset;
+                                window.scrollTo({ top: y, behavior: "smooth" });
+                            }
+                        }, 100);
+                    },
+                    openSharedArticle(articleId) {
+                        const [category, clusterNumber] = articleId.split("-");
+                        // Handle multi-word categories by capitalizing each word
+                        const targetCategory = category
+                            .split("+")
+                            .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                            .join(" ");
+
+                        // Wait for stories to be loaded
+                        const checkAndOpenStory = () => {
+                            if (this.allStories[targetCategory]) {
+                                // Set current category first
+                                this.currentCategory = targetCategory;
+
+                                // Make sure the category is enabled
+                                if (!Alpine.store("categories").enabled.includes(targetCategory)) {
+                                    Alpine.store("categories").enableCategory(targetCategory);
+                                }
+
+                                // Update category dropdown and UI
+                                this.updateCategoryDropdown();
+                                this.changeCategory();
+
+                                // Find and open the story
+                                const story = this.allStories[targetCategory].clusters.find((s) => s.cluster_number === parseInt(clusterNumber));
+
+                                if (story) {
+                                    // Ensure the story is in the visible stories array
+                                    this.stories = this.allStories[targetCategory].clusters.slice(0, this.$store.storyCount.current);
+
+                                    // Expand the story
+                                    story.expanded = true;
+                                    this.expandedStory = story;
+
+                                    // Scroll to the story after a short delay to ensure DOM is updated
+                                    this.$nextTick(() => {
+                                        const storyIndex = this.stories.findIndex((s) => s.cluster_number === story.cluster_number);
+                                        if (storyIndex !== -1) {
+                                            setTimeout(() => {
+                                                this.scrollToStory(storyIndex);
+                                            }, 200);
+                                        }
+                                    });
+                                } else {
+                                    console.warn(`Story with cluster number ${clusterNumber} not found in ${targetCategory}`);
+                                }
+                            } else {
+                                // If stories aren't loaded yet, try again in 100ms
+                                setTimeout(checkAndOpenStory, 100);
+                            }
+                        };
+
+                        // Start checking for stories
+                        checkAndOpenStory();
+                    },
+                    shareArticle(story) {
+                        const articleId = generateArticleId(this.currentCategory, story.cluster_number);
+                        const url = new URL(window.location);
+                        url.searchParams.set("article", articleId);
+
+                        if (navigator.share) {
+                            navigator
+                                .share({
+                                    title: story.title,
+                                    text: "Check out this story:",
+                                    url: url.toString(),
+                                })
+                                .catch(() => {
+                                    navigator.clipboard.writeText(url.toString());
+                                });
+                        } else {
+                            navigator.clipboard.writeText(url.toString());
+                        }
+                    },
+                    changeCategory() {
+                        // Close any expanded story
+                        if (this.expandedStory) {
+                            this.expandedStory.expanded = false;
+                            this.expandedStory = null;
+                            updateUrlWithArticleId("");
+                        }
+
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                        if (this.availableCategories.length > 0) {
+                            let enabledCategories = Alpine.store("categories").enabled;
+
+                            if (enabledCategories.length === 0) {
+                                this.availableCategories.forEach((cat) => Alpine.store("categories").enableCategory(cat.name));
+                                enabledCategories = Alpine.store("categories").enabled;
+                            }
+
+                            // Ensure current category is valid and load its stories
+                            if (!enabledCategories.includes(this.currentCategory)) {
+                                this.currentCategory = enabledCategories[0];
+                            }
+
+                            if (this.currentCategory === "OnThisDay") {
+                                this.stories = this.onThisDayEvents;
+                            } else if (this.allStories[this.currentCategory]) {
+                                const allClusters = this.allStories[this.currentCategory].clusters;
+                                const unreadClusters = allClusters.filter((story) => !this.readStories[story.title]);
+                                const readClusters = allClusters.filter((story) => this.readStories[story.title]);
+
+                                // Take unread stories up to the limit
+                                const unreadToShow = unreadClusters.slice(0, this.$store.storyCount.current);
+
+                                // Combine unread and read stories
+                                this.stories = [...unreadToShow, ...readClusters];
+                                this.readCount = this.allStories[this.currentCategory].readCount;
+                            }
+                        }
+                    },
+                }));
+            });
+
+            document.addEventListener("pointerover", (event) => {
+                const link = event.target.closest('a[href^="https://en.wikipedia.org/wiki/"]');
+                if (link) {
+                    if (event.pointerType === "touch" || window.innerWidth <= 768) {
+                        event.preventDefault();
+                    }
+                    const title = decodeURIComponent(link.getAttribute("href").split("/").pop());
+                    const apiUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
+                    fetch(apiUrl)
+                        .then((response) => response.json())
+                        .then((data) => {
+                            showPopup(data, link);
+                        })
+                        .catch((error) => {
+                            console.error("Error fetching Wikipedia summary:", error);
+                        });
+                }
+            });
+
+            document.addEventListener("pointerout", (event) => {
+                if (!event.target.closest('a[href^="https://en.wikipedia.org/wiki/"]') && !event.target.closest("#wikipedia-popup")) {
+                    document.getElementById("wikipedia-popup").style.display = "none";
+                }
+            });
+        </script>
 </body>
 
 </html>
